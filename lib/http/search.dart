@@ -94,6 +94,7 @@ abstract final class SearchHttp {
             path: searchType.api,
             query: params,
             accountType: AccountType.recommend,
+            includeResolverMode: true,
           );
     final resData = res.data;
     if (resData is Map) {

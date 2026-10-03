@@ -62,6 +62,7 @@ abstract final class BangumiResolverRequest {
     required String path,
     Map<String, dynamic>? query,
     required AccountType accountType,
+    bool includeResolverMode = false,
   }) async {
     final account = Accounts.get(accountType);
     final cookies = await account.cookieJar.loadForRequest(
@@ -80,7 +81,7 @@ abstract final class BangumiResolverRequest {
         headers: {
           ...account.headers,
           if (cookieHeader.isNotEmpty) HttpHeaders.cookieHeader: cookieHeader,
-          'resolver_mode': region.mode,
+          if (includeResolverMode) 'resolver_mode': region.mode,
         },
       ),
     );
