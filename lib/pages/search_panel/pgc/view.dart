@@ -5,6 +5,7 @@ import 'package:PiliPlus/pages/search_panel/controller.dart';
 import 'package:PiliPlus/pages/search_panel/pgc/widgets/item.dart';
 import 'package:PiliPlus/pages/search_panel/view.dart';
 import 'package:PiliPlus/utils/grid.dart';
+import 'package:PiliPlus/utils/bangumi_resolver.dart';
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart'
     hide SliverGridDelegateWithMaxCrossAxisExtent;
@@ -49,6 +50,44 @@ class _SearchPgcPanelState
     maxCrossAxisExtent: Grid.smallCardWidth * 2,
     mainAxisExtent: 158,
   );
+
+  @override
+  Widget? buildHeader() {
+    if (!{'media_bangumi', 'media_ft'}.contains(widget.searchType.name) ||
+        !BangumiRegion.enabled ||
+        BangumiRegion.configured.isEmpty) {
+      return null;
+    }
+    return SliverToBoxAdapter(
+      child: Obx(
+        () => SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              ChoiceChip(
+                label: const Text('B站'),
+                selected: controller.resolverRegion.value == null,
+                onSelected: (_) => controller.selectResolverRegion(null),
+              ),
+              for (final region in BangumiRegion.configured.where(
+                (region) =>
+                    widget.searchType.name == 'media_bangumi' ||
+                    region != BangumiRegion.sea,
+              )) ...[
+                const SizedBox(width: 8),
+                ChoiceChip(
+                  label: Text('番剧（${region.label}）'),
+                  selected: controller.resolverRegion.value == region,
+                  onSelected: (_) => controller.selectResolverRegion(region),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget buildList(List<SearchPgcItemModel> list) {

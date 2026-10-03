@@ -27,6 +27,7 @@ class PlayUrlModel {
   });
 
   String? from;
+  String? resolverRegionCode;
   String? result;
   String? message;
   int? quality;
@@ -143,10 +144,7 @@ class PlayUrlModel {
 }
 
 class Language {
-  Language({
-    this.support,
-    this.items,
-  });
+  Language({this.support, this.items});
 
   bool? support;
   List<LanguageItem>? items;
@@ -166,11 +164,7 @@ class Language {
 }
 
 class LanguageItem {
-  LanguageItem({
-    this.lang,
-    this.title,
-    this.subtitleLang,
-  });
+  LanguageItem({this.lang, this.title, this.subtitleLang});
 
   String? lang;
   String? title;
@@ -186,12 +180,7 @@ class LanguageItem {
 }
 
 class Dash {
-  Dash({
-    this.duration,
-    this.minBufferTime,
-    this.video,
-    this.audio,
-  });
+  Dash({this.duration, this.minBufferTime, this.video, this.audio});
 
   int? duration;
   double? minBufferTime;

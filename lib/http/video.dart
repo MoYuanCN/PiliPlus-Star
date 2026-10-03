@@ -34,6 +34,7 @@ import 'package:PiliPlus/utils/global_data.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/recommend_filter.dart';
 import 'package:PiliPlus/utils/request_utils.dart';
+import 'package:PiliPlus/utils/bangumi_resolver.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/subtitle_utils.dart';
@@ -208,6 +209,7 @@ abstract final class VideoHttp {
     required VideoType videoType,
     String? language,
     bool voiceBalance = false,
+    String? resolverRegionCode,
   }) async {
     final dmImgStr = Utils.base64EncodeRandomString(16, 64);
     final dmCoverImgStr = Utils.base64EncodeRandomString(32, 128);
@@ -256,6 +258,14 @@ abstract final class VideoHttp {
               ..lastPlayTime =
                   result['play_view_business_info']?['user_status']?['watch_progress']?['current_watch_progress'];
         }
+        if (videoType == .pgc && !hasPlayableStream(data)) {
+          final resolved = await _regionalPlayUrl(
+            params,
+            path: videoType.api,
+            resolverRegionCode: resolverRegionCode,
+          );
+          if (resolved != null) return Success(resolved);
+        }
         return Success(data);
       } else if (epid != null && videoType == .ugc) {
         return await videoUrl(
@@ -267,13 +277,69 @@ abstract final class VideoHttp {
           seasonId: seasonId,
           tryLook: tryLook,
           videoType: .pgc,
+          resolverRegionCode: resolverRegionCode,
         );
+      }
+      if (videoType == .pgc) {
+        final resolved = await _regionalPlayUrl(
+          params,
+          path: videoType.api,
+          resolverRegionCode: resolverRegionCode,
+        );
+        if (resolved != null) return Success(resolved);
       }
       return Error(_parseVideoErr(res.data['code'], res.data['message']));
     } catch (e, s) {
+      if (videoType == .pgc) {
+        final resolved = await _regionalPlayUrl(
+          params,
+          path: videoType.api,
+          resolverRegionCode: resolverRegionCode,
+        );
+        if (resolved != null) return Success(resolved);
+      }
       return Error('$e\n\n$s');
     }
   }
+
+  static Future<PlayUrlModel?> _regionalPlayUrl(
+    Map<String, dynamic> params, {
+    required String path,
+    String? resolverRegionCode,
+  }) async {
+    if (!BangumiRegion.enabled) return null;
+    final preferred = BangumiRegion.byMode(resolverRegionCode);
+    final candidates = [
+      if (preferred != null && BangumiRegion.configured.contains(preferred))
+        preferred,
+      ...BangumiRegion.configured.where((region) => region != preferred),
+    ];
+    for (final region in candidates) {
+      try {
+        final response = await BangumiResolverRequest.get(
+          region: region,
+          path: path,
+          query: params,
+          accountType: AccountType.video,
+        );
+        final body = response.data;
+        if (body is! Map || body['code'] != 0) continue;
+        final json = body['result']?['video_info'];
+        if (json is! Map) continue;
+        final model = PlayUrlModel.fromJson(Map<String, dynamic>.from(json))
+          ..resolverRegionCode = region.mode;
+        if (hasPlayableStream(model)) return model;
+      } catch (_) {
+        // Each configured resolver is attempted at most once.
+      }
+    }
+    return null;
+  }
+
+  static bool hasPlayableStream(PlayUrlModel model) =>
+      model.dash?.video?.any((item) => item.baseUrl?.isNotEmpty == true) ==
+          true ||
+      model.durl?.any((item) => item.url?.isNotEmpty == true) == true;
 
   static String _parseVideoErr(int? code, String? msg) {
     return switch (code) {
@@ -813,23 +879,66 @@ abstract final class VideoHttp {
     required int cid,
     dynamic seasonId,
     dynamic epId,
+    String? resolverRegionCode,
   }) async {
     assert(aid != null || bvid != null);
-    final res = await Request().get(
-      Api.playInfo,
-      queryParameters: await WbiSign.makSign({
-        'aid': ?aid,
-        'bvid': ?bvid,
-        'cid': cid,
-        'season_id': ?seasonId,
-        'ep_id': ?epId,
-      }),
-    );
-    if (res.data['code'] == 0) {
-      return Success(PlayInfoData.fromJson(res.data['data']));
-    } else {
+    final params = await WbiSign.makSign({
+      'aid': ?aid,
+      'bvid': ?bvid,
+      'cid': cid,
+      'season_id': ?seasonId,
+      'ep_id': ?epId,
+    });
+    try {
+      final res = await Request().get(Api.playInfo, queryParameters: params);
+      if (res.data['code'] == 0) {
+        final normal = PlayInfoData.fromJson(res.data['data']);
+        if (normal.subtitle?.subtitles?.isNotEmpty == true ||
+            resolverRegionCode == null) {
+          return Success(normal);
+        }
+        final region = BangumiRegion.byMode(resolverRegionCode);
+        final resolved = region == null
+            ? null
+            : await _regionalPlayInfo(params, region);
+        if (resolved?.subtitle?.subtitles?.isNotEmpty == true) {
+          return Success(resolved!);
+        }
+        return Success(normal);
+      }
+      final region = BangumiRegion.byMode(resolverRegionCode);
+      final resolved = region == null
+          ? null
+          : await _regionalPlayInfo(params, region);
+      if (resolved != null) return Success(resolved);
       return Error(res.data['message']);
+    } catch (e) {
+      final region = BangumiRegion.byMode(resolverRegionCode);
+      final resolved = region == null
+          ? null
+          : await _regionalPlayInfo(params, region);
+      if (resolved != null) return Success(resolved);
+      return Error(e.toString());
     }
+  }
+
+  static Future<PlayInfoData?> _regionalPlayInfo(
+    Map<String, dynamic> params,
+    BangumiRegion region,
+  ) async {
+    if (!BangumiRegion.configured.contains(region)) return null;
+    try {
+      final response = await BangumiResolverRequest.get(
+        region: region,
+        path: Api.playInfo,
+        query: params,
+        accountType: AccountType.heartbeat,
+      );
+      if (response.data is Map && response.data['code'] == 0) {
+        return PlayInfoData.fromJson(response.data['data']);
+      }
+    } catch (_) {}
+    return null;
   }
 
   static Future<String?> getSubtitles(

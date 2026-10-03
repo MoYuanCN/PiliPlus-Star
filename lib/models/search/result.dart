@@ -12,20 +12,14 @@ import 'package:PiliPlus/utils/parse_int.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 
 abstract class SearchNumData<T> {
-  SearchNumData({
-    this.numResults,
-    this.list,
-  });
+  SearchNumData({this.numResults, this.list});
 
   int? numResults;
   List<T>? list;
 }
 
 class SearchVideoData extends SearchNumData<SearchVideoItemModel> {
-  SearchVideoData({
-    super.numResults,
-    super.list,
-  });
+  SearchVideoData({super.numResults, super.list});
 
   SearchVideoData.fromJson(Map<String, dynamic> json) {
     numResults = (json['numResults'] as num?)?.toInt();
@@ -240,10 +234,7 @@ class SearchOwner extends Owner {
 }
 
 class SearchUserData extends SearchNumData<SearchUserItemModel> {
-  SearchUserData({
-    super.numResults,
-    super.list,
-  });
+  SearchUserData({super.numResults, super.list});
 
   SearchUserData.fromJson(Map<String, dynamic> json) {
     numResults = (json['numResults'] as num?)?.toInt();
@@ -316,10 +307,7 @@ class SearchUserItemModel {
 }
 
 class SearchLiveData extends SearchNumData<SearchLiveItemModel> {
-  SearchLiveData({
-    super.numResults,
-    super.list,
-  });
+  SearchLiveData({super.numResults, super.list});
 
   SearchLiveData.fromJson(Map<String, dynamic> json) {
     numResults = (json['numResults'] as num?)?.toInt();
@@ -394,10 +382,7 @@ class SearchLiveItemModel {
 }
 
 class SearchPgcData extends SearchNumData<SearchPgcItemModel> {
-  SearchPgcData({
-    super.numResults,
-    super.list,
-  });
+  SearchPgcData({super.numResults, super.list});
 
   SearchPgcData.fromJson(Map<String, dynamic> json) {
     numResults = (json['numResults'] as num?)?.toInt();
@@ -461,6 +446,7 @@ class SearchPgcItemModel {
   int? mediaMode;
   Map? mediaScore;
   String? indexShow;
+  String? resolverRegionCode;
 
   SearchPgcItemModel.fromJson(Map<String, dynamic> json) {
     type = json['type'];
@@ -492,10 +478,7 @@ class SearchPgcItemModel {
 }
 
 class SearchArticleData extends SearchNumData<SearchArticleItemModel> {
-  SearchArticleData({
-    super.numResults,
-    super.list,
-  });
+  SearchArticleData({super.numResults, super.list});
 
   SearchArticleData.fromJson(Map<String, dynamic> json) {
     numResults = (json['numResults'] as num?)?.toInt();

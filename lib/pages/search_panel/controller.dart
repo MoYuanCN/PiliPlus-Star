@@ -10,6 +10,7 @@ import 'package:PiliPlus/models/search/result.dart';
 import 'package:PiliPlus/pages/common/common_list_controller.dart';
 import 'package:PiliPlus/pages/search_result/controller.dart';
 import 'package:PiliPlus/utils/extension/scroll_controller_ext.dart';
+import 'package:PiliPlus/utils/bangumi_resolver.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
 
@@ -44,10 +45,7 @@ class SearchPanelController<R extends SearchNumData<T>, T>
 
   SearchResultController? searchResultController;
 
-  void onSortSearch({
-    bool getBack = true,
-    String? label,
-  }) {
+  void onSortSearch({bool getBack = true, String? label}) {
     if (getBack) Get.back();
     SmartDialog.dismiss();
     if (label != null) {
@@ -92,6 +90,16 @@ class SearchPanelController<R extends SearchNumData<T>, T>
   }
 
   String? gaiaVtoken;
+  final Rxn<BangumiRegion> resolverRegion = Rxn<BangumiRegion>();
+
+  Future<void> selectResolverRegion(BangumiRegion? region) async {
+    if (resolverRegion.value == region) return;
+    resolverRegion.value = region;
+    page = 1;
+    isEnd = false;
+    loadingState.value = LoadingState<List<T>?>.loading();
+    await queryData();
+  }
 
   @override
   Future<LoadingState<R>> customGetData() => SearchHttp.searchByType<R>(
@@ -107,6 +115,7 @@ class SearchPanelController<R extends SearchNumData<T>, T>
     pubBegin: pubBegin,
     pubEnd: pubEnd,
     gaiaVtoken: gaiaVtoken,
+    resolverRegion: resolverRegion.value,
     onSuccess: (String gaiaVtoken) {
       this.gaiaVtoken = gaiaVtoken;
       queryData(page == 1);

@@ -23,11 +23,20 @@ abstract final class VideoUtils {
   static String getCdnUrl(
     Iterable<String> urls, {
     CDNService? defaultCDNService,
+    String? cdnHostOverride,
     bool isAudio = false,
   }) {
     defaultCDNService ??= cdnService;
+    final overrideHost =
+        cdnHostOverride == null || cdnHostOverride.trim().isEmpty
+        ? null
+        : Uri.tryParse(
+            cdnHostOverride.contains('://')
+                ? cdnHostOverride
+                : 'https://$cdnHostOverride',
+          )?.host;
 
-    if (defaultCDNService == CDNService.baseUrl) {
+    if (defaultCDNService == CDNService.baseUrl && overrideHost == null) {
       return urls.first;
     }
 
@@ -47,7 +56,9 @@ abstract final class VideoUtils {
               (isAudio && disableAudioCDN)) {
             return url;
           }
-          return uri.replace(host: defaultCDNService.host).toString();
+          return uri
+              .replace(host: overrideHost ?? defaultCDNService.host)
+              .toString();
         }
       }
 
@@ -79,14 +90,26 @@ abstract final class VideoUtils {
 
     return mcdnUpgcxcode == null
         ? mcdnTf == null
-              ? last
+              ? overrideHost == null
+                    ? last
+                    : Uri.tryParse(last)
+                              ?.replace(host: overrideHost)
+                              .toString() ??
+                          last
+              : overrideHost != null
+              ? Uri.parse(mcdnTf).replace(host: overrideHost).toString()
               : Uri(
                   scheme: 'https',
                   host: _proxyTf,
                   queryParameters: {'url': mcdnTf},
                 ).toString()
         : Uri.parse(mcdnUpgcxcode)
-              .replace(host: defaultCDNService.host ?? CDNService.ali.host)
+              .replace(
+                host:
+                    overrideHost ??
+                    defaultCDNService.host ??
+                    CDNService.ali.host,
+              )
               .toString();
   }
 

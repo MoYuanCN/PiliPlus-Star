@@ -11,6 +11,7 @@ import 'package:PiliPlus/pages/setting/widgets/select_dialog.dart';
 import 'package:PiliPlus/plugin/pl_player/models/audio_output_type.dart';
 import 'package:PiliPlus/plugin/pl_player/models/hwdec_type.dart';
 import 'package:PiliPlus/utils/filtering_text.dart';
+import 'package:PiliPlus/utils/bangumi_resolver.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
@@ -62,6 +63,34 @@ List<SettingsModel> get videoSettings => [
         '当前使用：${VideoUtils.cdnService.desc}，部分 CDN 可能失效，如无法播放请尝试切换',
     onTap: _showCDNDialog,
   ),
+  const SwitchModel(
+    title: '自定义番剧解析服务器',
+    subtitle: '开启后按地区使用下方服务器；请求会携带当前账号凭据，请仅填写可信服务器',
+    leading: Icon(Icons.travel_explore_outlined),
+    setKey: SettingBoxKey.enableBangumiResolver,
+  ),
+  for (final region in BangumiRegion.values) ...[
+    NormalModel(
+      title: '${region.label}番剧解析服务器',
+      leading: const Icon(Icons.dns_outlined),
+      getSubtitle: () => region.resolver.isEmpty ? '未设置' : region.resolver,
+      onTap: (context, setState) => _editResolverValue(
+        context,
+        region.resolverKey,
+        '${region.label}番剧解析服务器 URL',
+      ).then((_) => setState()),
+    ),
+    NormalModel(
+      title: '${region.label}番剧 CDN',
+      leading: const Icon(MdiIcons.cloudOutline),
+      getSubtitle: () => region.cdn.isEmpty ? '跟随 CDN 设置' : region.cdn,
+      onTap: (context, setState) => _editResolverValue(
+        context,
+        region.cdnKey,
+        '${region.label}番剧 CDN host',
+      ).then((_) => setState()),
+    ),
+  ],
   NormalModel(
     title: '直播 CDN 设置',
     leading: const Icon(MdiIcons.cloudPlusOutline),
@@ -179,6 +208,53 @@ List<SettingsModel> get videoSettings => [
   ),
 ];
 
+Future<void> _editResolverValue(
+  BuildContext context,
+  String key,
+  String title,
+) async {
+  var value = GStorage.setting.get(key, defaultValue: '') as String;
+  final result = await showDialog<String>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(title),
+      content: TextFormField(
+        initialValue: value,
+        autofocus: true,
+        keyboardType: TextInputType.url,
+        onChanged: (text) => value = text.trim(),
+        decoration: const InputDecoration(
+          hintText: '留空则不使用',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: Get.back, child: const Text('取消')),
+        TextButton(
+          onPressed: () => Get.back(result: value),
+          child: const Text('保存'),
+        ),
+      ],
+    ),
+  );
+  if (result == null) return;
+  if (result.isNotEmpty &&
+      (key.startsWith('bangumiResolver') || key.startsWith('bangumiCdn'))) {
+    final uri = Uri.tryParse(result);
+    final isCdn = key.startsWith('bangumiCdn');
+    if (uri == null ||
+        (isCdn
+            ? uri.host.isEmpty
+            : !{'http', 'https'}.contains(uri.scheme) || uri.host.isEmpty)) {
+      SmartDialog.showToast(
+        isCdn ? '请输入有效 CDN host' : '请输入有效的 HTTP 或 HTTPS URL',
+      );
+      return;
+    }
+  }
+  await GStorage.setting.put(key, result);
+}
+
 Future<void> _showCDNDialog(BuildContext context, VoidCallback setState) async {
   final res = await showDialog<CDNService>(
     context: context,
@@ -266,10 +342,7 @@ Future<void> _showVideoCellularQaDialog(
     ),
   );
   if (res != null) {
-    await GStorage.setting.put(
-      SettingBoxKey.defaultVideoQaCellular,
-      res,
-    );
+    await GStorage.setting.put(SettingBoxKey.defaultVideoQaCellular, res);
     setState();
   }
 }
@@ -305,10 +378,7 @@ Future<void> _showAudioCellularQaDialog(
     ),
   );
   if (res != null) {
-    await GStorage.setting.put(
-      SettingBoxKey.defaultAudioQaCellular,
-      res,
-    );
+    await GStorage.setting.put(SettingBoxKey.defaultAudioQaCellular, res);
     setState();
   }
 }
@@ -400,16 +470,11 @@ Future<void> _showAudioOutputDialog(
     builder: (context) => OrderedMultiSelectDialog<String>(
       title: '音频输出设备',
       initValues: Pref.audioOutput.split(','),
-      values: {
-        for (final e in AudioOutput.values) e.name: e.label,
-      },
+      values: {for (final e in AudioOutput.values) e.name: e.label},
     ),
   );
   if (res != null && res.isNotEmpty) {
-    await GStorage.setting.put(
-      SettingBoxKey.audioOutput,
-      res.join(','),
-    );
+    await GStorage.setting.put(SettingBoxKey.audioOutput, res.join(','));
     setState();
   }
 }
@@ -457,10 +522,7 @@ Future<void> _showHwDecDialog(
     ),
   );
   if (res != null && res.isNotEmpty) {
-    await GStorage.setting.put(
-      SettingBoxKey.hardwareDecoding,
-      res.join(','),
-    );
+    await GStorage.setting.put(SettingBoxKey.hardwareDecoding, res.join(','));
     setState();
   }
 }
