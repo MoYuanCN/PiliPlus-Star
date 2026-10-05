@@ -34,6 +34,13 @@ enum BangumiRegion {
     defaultValue: false,
   );
 
+  static BangumiRegion? get defaultRegion => byMode(
+    GStorage.setting.get(
+      SettingBoxKey.bangumiResolverDefaultRegion,
+      defaultValue: '',
+    ) as String?,
+  );
+
   static List<BangumiRegion> get configured => enabled
       ? values.where((region) => region.resolver.isNotEmpty).toList()
       : const [];
@@ -49,6 +56,18 @@ enum BangumiRegion {
       _ => null,
     };
   }
+
+  static List<BangumiRegion> candidates(String? preferredMode) {
+    final preferred = byMode(preferredMode) ?? defaultRegion;
+    return [
+      if (preferred != null && configured.contains(preferred)) preferred,
+      ...configured.where((region) => region != preferred),
+    ];
+  }
+
+  static Future<void> setDefaultRegion(BangumiRegion? region) => GStorage
+      .setting
+      .put(SettingBoxKey.bangumiResolverDefaultRegion, region?.mode ?? '');
 
   Uri endpoint(String path) {
     final base = Uri.parse(resolver.endsWith('/') ? resolver : '$resolver/');

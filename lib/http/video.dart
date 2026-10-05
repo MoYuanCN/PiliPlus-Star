@@ -324,13 +324,7 @@ abstract final class VideoHttp {
     String? resolverRegionCode,
   }) async {
     if (!BangumiRegion.enabled) return null;
-    final preferred = BangumiRegion.byMode(resolverRegionCode);
-    final candidates = [
-      if (preferred != null && BangumiRegion.configured.contains(preferred))
-        preferred,
-      ...BangumiRegion.configured.where((region) => region != preferred),
-    ];
-    for (final region in candidates) {
+    for (final region in BangumiRegion.candidates(resolverRegionCode)) {
       try {
         final response = await BangumiResolverRequest.get(
           region: region,

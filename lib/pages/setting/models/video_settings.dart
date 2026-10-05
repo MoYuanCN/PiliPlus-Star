@@ -69,6 +69,13 @@ List<SettingsModel> get videoSettings => [
     leading: Icon(Icons.travel_explore_outlined),
     setKey: SettingBoxKey.enableBangumiResolver,
   ),
+  NormalModel(
+    title: '默认解析地区',
+    leading: const Icon(Icons.public_outlined),
+    getSubtitle: () => BangumiRegion.defaultRegion?.label ?? '未指定，按列表顺序尝试',
+    onTap: (context, setState) =>
+        _showBangumiDefaultRegion(context).then((_) => setState()),
+  ),
   for (final region in BangumiRegion.values) ...[
     NormalModel(
       title: '${region.label}番剧解析服务器',
@@ -207,6 +214,33 @@ List<SettingsModel> get videoSettings => [
     onTap: _showHwDecDialog,
   ),
 ];
+
+Future<void> _showBangumiDefaultRegion(BuildContext context) async {
+  final selected = await showDialog<String>(
+    context: context,
+    builder: (context) => SimpleDialog(
+      title: const Text('默认解析地区'),
+      children: [
+        for (final value in [
+          '',
+          ...BangumiRegion.values.map((region) => region.mode),
+        ])
+          RadioListTile<String>(
+            value: value,
+            groupValue: BangumiRegion.defaultRegion?.mode ?? '',
+            title: Text(
+              value.isEmpty
+                  ? '未指定，按列表顺序尝试'
+                  : BangumiRegion.byMode(value)!.label,
+            ),
+            onChanged: (value) => Get.back(result: value),
+          ),
+      ],
+    ),
+  );
+  if (selected == null) return;
+  await BangumiRegion.setDefaultRegion(BangumiRegion.byMode(selected));
+}
 
 Future<void> _editResolverValue(
   BuildContext context,

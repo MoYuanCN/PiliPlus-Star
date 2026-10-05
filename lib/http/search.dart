@@ -189,13 +189,7 @@ abstract final class SearchHttp {
       originalError = e;
     }
     if (BangumiRegion.enabled) {
-      final preferred = BangumiRegion.byMode(resolverRegionCode);
-      final candidates = [
-        if (preferred != null && BangumiRegion.configured.contains(preferred))
-          preferred,
-        ...BangumiRegion.configured.where((region) => region != preferred),
-      ];
-      for (final region in candidates) {
+      for (final region in BangumiRegion.candidates(resolverRegionCode)) {
         try {
           final proxy = await BangumiResolverRequest.get(
             region: region,
