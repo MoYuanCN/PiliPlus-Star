@@ -6,6 +6,7 @@ abstract class CommonListController<R, T> extends CommonController<R, T> {
   int page = 1;
   bool isEnd = false;
   bool? hasFooter;
+  int _queryGeneration = 0;
 
   @override
   Rx<LoadingState<List<T>?>> loadingState =
@@ -20,10 +21,18 @@ abstract class CommonListController<R, T> extends CommonController<R, T> {
   void checkIsEnd(int length) {}
 
   @override
-  Future<void> queryData([bool isRefresh = true]) async {
-    if (isLoading || (!isRefresh && isEnd)) return;
+  Future<void> queryData([bool isRefresh = true]) => _queryData(isRefresh);
+
+  Future<void> queryDataSuperseding() => _queryData(true, supersede: true);
+
+  Future<void> _queryData(bool isRefresh, {bool supersede = false}) async {
+    if ((isLoading && !supersede) || (!isRefresh && isEnd)) return;
+    final generation = ++_queryGeneration;
     isLoading = true;
     final LoadingState<R> res = await customGetData();
+    // A newer refresh can supersede an in-flight request (for example when
+    // switching resolver regions). Older responses must not replace its data.
+    if (generation != _queryGeneration) return;
     if (res case Success(:final response)) {
       if (!customHandleResponse(isRefresh, res)) {
         final dataList = getDataList(response);

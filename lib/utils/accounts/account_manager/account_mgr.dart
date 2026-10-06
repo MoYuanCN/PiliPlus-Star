@@ -62,9 +62,10 @@ class AccountManager extends Interceptor {
       return handler.next(options);
     }
 
-    options.headers
-      ..addAll(account.headers)
-      ..['referer'] ??= HttpString.baseUrl;
+    if (options.extra['preserveAccountHeaders'] != true) {
+      options.headers.addAll(account.headers);
+    }
+    options.headers['referer'] ??= HttpString.baseUrl;
 
     // app端不需要管理cookie
     if (isApp) {
@@ -161,6 +162,7 @@ class AccountManager extends Interceptor {
   }
 
   static void toast(DioException err) {
+    if (err.requestOptions.extra['suppressResolverErrors'] == true) return;
     const skipShow = [
       'heartbeat',
       'history/report',

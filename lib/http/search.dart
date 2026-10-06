@@ -10,6 +10,8 @@ import 'package:PiliPlus/models_new/pgc/pgc_info_model/result.dart';
 import 'package:PiliPlus/models_new/search/search_rcmd/data.dart';
 import 'package:PiliPlus/models_new/search/search_trending/data.dart';
 import 'package:PiliPlus/utils/extension/iterable_ext.dart';
+import 'package:PiliPlus/utils/bangumi_resolver.dart';
+import 'package:PiliPlus/models/common/account_type.dart';
 import 'package:PiliPlus/utils/request_utils.dart';
 import 'package:PiliPlus/utils/wbi_sign.dart';
 import 'package:dio/dio.dart';
@@ -58,37 +60,79 @@ abstract final class SearchHttp {
     int? pubBegin,
     int? pubEnd,
     String? gaiaVtoken,
+    BangumiRegion? resolverRegion,
+    String? resolverCursor,
     required ValueChanged<String> onSuccess,
   }) async {
-    final params = await WbiSign.makSign({
-      'search_type': searchType.name,
-      'keyword': keyword,
-      'page': page,
-      if (order != null && order.isNotEmpty) 'order': order,
-      'duration': ?duration,
-      'tids': ?tids,
-      'order_sort': ?orderSort,
-      'user_type': ?userType,
-      'category_id': ?categoryId,
-      'pubtime_begin_s': ?pubBegin,
-      'pubtime_end_s': ?pubEnd,
-      'page_size': 20,
-      'platform': 'pc',
-      'web_location': 1430654,
-      'gaia_vtoken': ?gaiaVtoken,
-    });
-    final res = await Request().get(
-      searchType.api,
-      queryParameters: params,
-      options: Options(
-        headers: {
-          if (gaiaVtoken != null) 'cookie': 'x-bili-gaia-vtoken=$gaiaVtoken',
-          'origin': 'https://search.bilibili.com',
-          'referer':
-              'https://search.bilibili.com/${searchType.name}?keyword=${Uri.encodeFull(keyword)}',
-        },
-      ),
-    );
+    final useIntlAppSearch =
+        resolverRegion == BangumiRegion.sea &&
+        searchType == SearchType.media_bangumi;
+    // The resolver maps this request to Intl APP SearchByType(type=7).
+    // App/device metadata and account credentials travel with the request;
+    // a resolver may build the protobuf without a local HAR template.
+    final params = useIntlAppSearch
+        ? <String, dynamic>{
+            'search_type': 'media_bangumi',
+            'keyword': keyword,
+            'page': page,
+            'page_size': 20,
+            'resolver_mode': BangumiRegion.sea.resolverMode,
+            'resolver_app_id': 14,
+            'resolver_mobi_app': 'android_i',
+            'resolver_build': 9130300,
+            'resolver_version': '6.6.0',
+            'resolver_channel': 'pink_overseas',
+            'resolver_platform': 'android',
+            'resolver_locale': 'zh-Hans-SG',
+            'resolver_timezone': 'Asia/Bangkok',
+            if (page > 1 && resolverCursor?.isNotEmpty == true)
+              'resolver_cursor': resolverCursor,
+          }
+        : await WbiSign.makSign({
+            'search_type': searchType.name,
+            'keyword': keyword,
+            'page': page,
+            if (order != null && order.isNotEmpty) 'order': order,
+            'duration': ?duration,
+            'tids': ?tids,
+            'order_sort': ?orderSort,
+            'user_type': ?userType,
+            'category_id': ?categoryId,
+            'pubtime_begin_s': ?pubBegin,
+            'pubtime_end_s': ?pubEnd,
+            'page_size': 20,
+            'platform': 'pc',
+            'web_location': 1430654,
+            'gaia_vtoken': ?gaiaVtoken,
+          });
+    final res = resolverRegion == null
+        ? await Request().get(
+            searchType.api,
+            queryParameters: params,
+            options: Options(
+              headers: {
+                if (gaiaVtoken != null)
+                  'cookie': 'x-bili-gaia-vtoken=$gaiaVtoken',
+                'origin': 'https://search.bilibili.com',
+                'referer':
+                    'https://search.bilibili.com/${searchType.name}?keyword=${Uri.encodeFull(keyword)}',
+              },
+            ),
+          )
+        : await BangumiResolverRequest.get(
+            region: resolverRegion,
+            path: searchType.api,
+            query: params,
+            accountType: useIntlAppSearch
+                ? AccountType.video
+                : AccountType.recommend,
+            includeResolverMode: true,
+            useAccountCredentials: true,
+            useIntlAppSearchMetadata: useIntlAppSearch,
+            receiveTimeout: useIntlAppSearch
+                ? const Duration(seconds: 45)
+                : const Duration(seconds: 20),
+          );
     final resData = res.data;
     if (resData is Map) {
       if (resData['code'] == 0) {
@@ -99,16 +143,23 @@ abstract final class SearchHttp {
           return const Error('触发风控');
         }
         try {
-          return Success(
-            switch (searchType) {
-              .all => SearchVideoData.fromSearchAll(dataData),
-              .video => SearchVideoData.fromJson(dataData),
-              .media_bangumi || .media_ft => SearchPgcData.fromJson(dataData),
-              .live_room => SearchLiveData.fromJson(dataData),
-              .bili_user => SearchUserData.fromJson(dataData),
-              .article => SearchArticleData.fromJson(dataData),
-            } as R,
-          );
+          final parsed = switch (searchType) {
+            .all => SearchVideoData.fromSearchAll(dataData),
+            .video => SearchVideoData.fromJson(dataData),
+            .media_bangumi || .media_ft => SearchPgcData.fromJson(dataData),
+            .live_room => SearchLiveData.fromJson(dataData),
+            .bili_user => SearchUserData.fromJson(dataData),
+            .article => SearchArticleData.fromJson(dataData),
+          } as R;
+          if (resolverRegion != null && parsed is SearchPgcData) {
+            if (useIntlAppSearch && page > 1) {
+              parsed.list?.removeWhere((item) => item.isResolverInjected);
+            }
+            for (final item in parsed.list ?? const <SearchPgcItemModel>[]) {
+              item.resolverRegionCode = resolverRegion.mode;
+            }
+          }
+          return Success(parsed);
         } catch (e, s) {
           return Error('$e\n\n$s');
         }
@@ -152,19 +203,68 @@ abstract final class SearchHttp {
   static Future<LoadingState<PgcInfoModel>> pgcInfo({
     dynamic seasonId,
     dynamic epId,
+    String? resolverRegionCode,
   }) async {
-    final res = await Request().get(
-      Api.pgcInfo,
-      queryParameters: {
-        'season_id': ?seasonId,
-        'ep_id': ?epId,
-      },
-    );
-    if (res.data['code'] == 0) {
-      return Success(PgcInfoModel.fromJson(res.data['result']));
-    } else {
-      return Error(res.data['message']);
+    final query = {'season_id': ?seasonId, 'ep_id': ?epId};
+    Object? originalError;
+    final triedRegions = <BangumiRegion>{};
+    final preferredRegion = BangumiRegion.byMode(resolverRegionCode);
+    if (BangumiRegion.enabled &&
+        preferredRegion != null &&
+        BangumiRegion.configured.contains(preferredRegion)) {
+      triedRegions.add(preferredRegion);
+      try {
+        final proxy = await BangumiResolverRequest.get(
+          region: preferredRegion,
+          path: Api.pgcInfo,
+          query: query,
+          accountType: AccountType.heartbeat,
+        );
+        if (proxy.data is Map && proxy.data['code'] == 0) {
+          final regional = PgcInfoModel.fromJson(proxy.data['result']);
+          if (regional.episodes?.isNotEmpty == true ||
+              regional.section?.any(
+                    (section) => section.episodes?.isNotEmpty == true,
+                  ) ==
+                  true) {
+            return Success(regional);
+          }
+        }
+      } catch (_) {}
     }
+    try {
+      final res = await Request().get(Api.pgcInfo, queryParameters: query);
+      if (res.data['code'] == 0) {
+        final normal = PgcInfoModel.fromJson(res.data['result']);
+        if (normal.episodes?.isNotEmpty == true ||
+            normal.section?.any(
+                  (section) => section.episodes?.isNotEmpty == true,
+                ) ==
+                true) {
+          return Success(normal);
+        }
+      }
+      originalError = res.data['message'] ?? '番剧详情未返回剧集';
+    } catch (e) {
+      originalError = e;
+    }
+    if (BangumiRegion.enabled) {
+      for (final region in BangumiRegion.candidates(resolverRegionCode)) {
+        if (triedRegions.contains(region)) continue;
+        try {
+          final proxy = await BangumiResolverRequest.get(
+            region: region,
+            path: Api.pgcInfo,
+            query: query,
+            accountType: AccountType.heartbeat,
+          );
+          if (proxy.data is Map && proxy.data['code'] == 0) {
+            return Success(PgcInfoModel.fromJson(proxy.data['result']));
+          }
+        } catch (_) {}
+      }
+    }
+    return Error(originalError?.toString());
   }
 
   static Future<LoadingState<PgcInfoModel>> pugvInfo({
@@ -173,10 +273,7 @@ abstract final class SearchHttp {
   }) async {
     final res = await Request().get(
       Api.pugvInfo,
-      queryParameters: {
-        'season_id': ?seasonId,
-        'ep_id': ?epId,
-      },
+      queryParameters: {'season_id': ?seasonId, 'ep_id': ?epId},
     );
     if (res.data['code'] == 0) {
       return Success(PgcInfoModel.fromJson(res.data['data']));
@@ -205,9 +302,7 @@ abstract final class SearchHttp {
   }) async {
     final res = await Request().get(
       Api.searchTrending,
-      queryParameters: {
-        'limit': limit,
-      },
+      queryParameters: {'limit': limit},
     );
     if (res.data['code'] == 0) {
       return Success(

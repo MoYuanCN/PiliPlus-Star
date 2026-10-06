@@ -11,6 +11,7 @@ import 'package:PiliPlus/pages/setting/widgets/select_dialog.dart';
 import 'package:PiliPlus/plugin/pl_player/models/audio_output_type.dart';
 import 'package:PiliPlus/plugin/pl_player/models/hwdec_type.dart';
 import 'package:PiliPlus/utils/filtering_text.dart';
+import 'package:PiliPlus/utils/bangumi_resolver.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
@@ -21,6 +22,61 @@ import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:material_ui/material_ui.dart';
+
+enum _ResolverModeOption { cn, hk, mo, tw, th, intl, sea, custom }
+
+const _resolverModeChoices = <(_ResolverModeOption, String)>[
+  (_ResolverModeOption.cn, 'CN'),
+  (_ResolverModeOption.hk, 'HK'),
+  (_ResolverModeOption.mo, 'MO'),
+  (_ResolverModeOption.tw, 'TW'),
+  (_ResolverModeOption.th, 'TH（兼容值）'),
+  (_ResolverModeOption.intl, 'INTL'),
+  (_ResolverModeOption.sea, 'SEA'),
+  (_ResolverModeOption.custom, '自定义'),
+];
+
+const _resolverModeDescriptions = <String>[
+  '中国大陆普通 HTTP 搜索',
+  '香港普通 HTTP 搜索',
+  '澳门普通 HTTP 搜索',
+  '台湾普通 HTTP 搜索',
+  'Intl APP gRPC 搜索；东南亚设置会规范为 INTL',
+  'Intl APP gRPC 搜索；东南亚默认值',
+  'Intl APP gRPC 搜索',
+  '按解析服务器要求填写自定义值',
+];
+
+_ResolverModeOption _resolverModeOption(String value) => switch (
+  value.toUpperCase()
+) {
+  'CN' => _ResolverModeOption.cn,
+  'HK' => _ResolverModeOption.hk,
+  'MO' => _ResolverModeOption.mo,
+  'TW' => _ResolverModeOption.tw,
+  'TH' => _ResolverModeOption.th,
+  'INTL' => _ResolverModeOption.intl,
+  'SEA' => _ResolverModeOption.sea,
+  _ => _ResolverModeOption.custom,
+};
+
+String _resolverModeValue(_ResolverModeOption option) => switch (option) {
+  _ResolverModeOption.cn => 'CN',
+  _ResolverModeOption.hk => 'HK',
+  _ResolverModeOption.mo => 'MO',
+  _ResolverModeOption.tw => 'TW',
+  _ResolverModeOption.th => 'TH',
+  _ResolverModeOption.intl => 'INTL',
+  _ResolverModeOption.sea => 'SEA',
+  _ResolverModeOption.custom => '',
+};
+
+String _resolverModeSubtitle(BangumiRegion region) {
+  final mode = region.resolverMode;
+  return _resolverModeOption(mode) == _ResolverModeOption.custom
+      ? '$mode（自定义）'
+      : '$mode（默认：${region.mode}）';
+}
 
 List<SettingsModel> get videoSettings => [
   const SwitchModel(
@@ -62,6 +118,49 @@ List<SettingsModel> get videoSettings => [
         '当前使用：${VideoUtils.cdnService.desc}，部分 CDN 可能失效，如无法播放请尝试切换',
     onTap: _showCDNDialog,
   ),
+  const SwitchModel(
+    title: '自定义番剧解析服务器',
+    subtitle: '开启后使用自定义解析服务器搜索观看特定区域的番剧',
+    leading: Icon(Icons.travel_explore_outlined),
+    setKey: SettingBoxKey.enableBangumiResolver,
+  ),
+  NormalModel(
+    title: '默认解析地区',
+    leading: const Icon(Icons.public_outlined),
+    getSubtitle: () => BangumiRegion.defaultRegion?.label ?? '未指定，按列表顺序尝试',
+    onTap: (context, setState) =>
+        _showBangumiDefaultRegion(context).then((_) => setState()),
+  ),
+  for (final region in BangumiRegion.values) ...[
+    NormalModel(
+      title: '${region.label}番剧解析服务器',
+      leading: const Icon(Icons.dns_outlined),
+      getSubtitle: () => region.resolver.isEmpty ? '未设置' : region.resolver,
+      onTap: (context, setState) => _editResolverValue(
+        context,
+        region.resolverKey,
+        '${region.label}番剧解析服务器 URL',
+      ).then((_) => setState()),
+    ),
+    NormalModel(
+      title: '${region.label} resolver_mode',
+      getSubtitle: () => _resolverModeSubtitle(region),
+      leading: const Icon(Icons.tune_outlined),
+      onTap: (context, setState) =>
+          _editResolverMode(context, region).then((_) => setState()),
+    ),
+    NormalModel(
+      title: '${region.label}番剧 CDN',
+      leading: const Icon(MdiIcons.cloudOutline),
+      getSubtitle: () => switch ((region.cdnService, region.legacyCdnHost)) {
+        (final service?, _) => service.desc,
+        (null, final host?) => '旧自定义 CDN：$host',
+        _ => '跟随常规视频 CDN 设置',
+      },
+      onTap: (context, setState) =>
+          _showBangumiCdnDialog(context, region).then((_) => setState()),
+    ),
+  ],
   NormalModel(
     title: '直播 CDN 设置',
     leading: const Icon(MdiIcons.cloudPlusOutline),
@@ -179,6 +278,177 @@ List<SettingsModel> get videoSettings => [
   ),
 ];
 
+Future<void> _showBangumiDefaultRegion(BuildContext context) async {
+  final selected = await showDialog<String>(
+    context: context,
+    builder: (context) => SimpleDialog(
+      title: const Text('默认解析地区'),
+      children: [
+        for (final value in [
+          '',
+          ...BangumiRegion.values.map((region) => region.mode),
+        ])
+          RadioListTile<String>(
+            value: value,
+            groupValue: BangumiRegion.defaultRegion?.mode ?? '',
+            title: Text(
+              value.isEmpty
+                  ? '未指定，按列表顺序尝试'
+                  : BangumiRegion.byMode(value)!.label,
+            ),
+            onChanged: (value) => Get.back(result: value),
+          ),
+      ],
+    ),
+  );
+  if (selected == null) return;
+  await BangumiRegion.setDefaultRegion(BangumiRegion.byMode(selected));
+}
+
+Future<void> _editResolverValue(
+  BuildContext context,
+  String key,
+  String title,
+) async {
+  var value = GStorage.setting.get(key, defaultValue: '') as String;
+  final result = await showDialog<String>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(title),
+      content: TextFormField(
+        initialValue: value,
+        autofocus: true,
+        keyboardType: TextInputType.url,
+        onChanged: (text) => value = text.trim(),
+        decoration: InputDecoration(
+          hintText: key.startsWith('bangumiResolver')
+              ? '域名或 HTTP(S) 地址；公网默认 HTTPS，私网或非 443 端口默认 HTTP'
+              : '留空则不使用',
+          border: const OutlineInputBorder(),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: Get.back, child: const Text('取消')),
+        TextButton(
+          onPressed: () => Get.back(result: value),
+          child: const Text('保存'),
+        ),
+      ],
+    ),
+  );
+  if (result == null) return;
+  if (result.isNotEmpty &&
+      (key.startsWith('bangumiResolver') || key.startsWith('bangumiCdn'))) {
+    final isCdn = key.startsWith('bangumiCdn');
+    if (isCdn) {
+      final uri = Uri.tryParse(result);
+      if (uri == null || uri.host.isEmpty) {
+        SmartDialog.showToast('请输入有效 CDN host');
+        return;
+      }
+    } else {
+      try {
+        value = BangumiRegion.normalizeResolverAddress(result);
+      } on FormatException {
+        SmartDialog.showToast('请输入域名或 HTTP(S) 地址，例如 intl.pre-s.com');
+        return;
+      }
+    }
+  }
+  await GStorage.setting.put(key, value);
+}
+
+Future<void> _editResolverMode(
+  BuildContext context,
+  BangumiRegion region,
+) async {
+  final currentMode = region.resolverMode;
+  final currentOption = _resolverModeOption(currentMode);
+  final result = await showDialog<_ResolverModeOption>(
+    context: context,
+    builder: (context) => SelectDialog<_ResolverModeOption>(
+      value: currentOption,
+      title: '${region.label} resolver_mode（不清楚时保持默认）',
+      values: _resolverModeChoices,
+      subtitleBuilder: (context, index) => Text(
+        _resolverModeDescriptions[index],
+      ),
+    ),
+  );
+  if (result == null) return;
+
+  if (result == _ResolverModeOption.custom) {
+    final initialValue = currentOption == _ResolverModeOption.custom
+        ? currentMode
+        : '';
+    final customMode = await _editCustomResolverMode(
+      context,
+      region,
+      initialValue,
+    );
+    if (customMode == null) return;
+    await GStorage.setting.put(region.resolverModeKey, customMode);
+    return;
+  }
+
+  await GStorage.setting.put(
+    region.resolverModeKey,
+    _resolverModeValue(result),
+  );
+}
+
+Future<String?> _editCustomResolverMode(
+  BuildContext context,
+  BangumiRegion region,
+  String initialValue,
+) async {
+  var value = initialValue;
+  return showDialog<String>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text('${region.label}自定义 resolver_mode'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '自定义值会随番剧搜索发送给解析服务器。东南亚的 TH 会按兼容规则规范为 INTL。不清楚时请使用默认值 ${region.mode}。',
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            initialValue: initialValue,
+            autofocus: true,
+            maxLength: 64,
+            keyboardType: TextInputType.text,
+            onChanged: (text) => value = text.trim(),
+            decoration: const InputDecoration(
+              hintText: '输入解析服务器要求的值',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: const Text('取消'),
+        ),
+        TextButton(
+          onPressed: () {
+            final result = value.trim();
+            if (result.isEmpty) {
+              SmartDialog.showToast('请输入自定义 resolver_mode');
+              return;
+            }
+            Navigator.of(dialogContext).pop(result);
+          },
+          child: const Text('保存'),
+        ),
+      ],
+    ),
+  );
+}
+
 Future<void> _showCDNDialog(BuildContext context, VoidCallback setState) async {
   final res = await showDialog<CDNService>(
     context: context,
@@ -189,6 +459,28 @@ Future<void> _showCDNDialog(BuildContext context, VoidCallback setState) async {
     await GStorage.setting.put(SettingBoxKey.CDNService, res.name);
     setState();
   }
+}
+
+Future<void> _showBangumiCdnDialog(
+  BuildContext context,
+  BangumiRegion region,
+) async {
+  final selectedValue =
+      region.cdnService?.name ??
+      (region.legacyCdnHost == null ? 'follow' : 'legacy');
+  final result = await showDialog<String>(
+    context: context,
+    builder: (context) => BangumiCdnSelectDialog(
+      title: '${region.label}番剧 CDN',
+      selectedValue: selectedValue,
+      legacyLabel: region.legacyCdnHost,
+    ),
+  );
+  if (result == null || result == 'legacy') return;
+  await GStorage.setting.put(
+    region.cdnKey,
+    result == 'follow' ? '' : result,
+  );
 }
 
 Future<void> _showLiveCDNDialog(
@@ -266,10 +558,7 @@ Future<void> _showVideoCellularQaDialog(
     ),
   );
   if (res != null) {
-    await GStorage.setting.put(
-      SettingBoxKey.defaultVideoQaCellular,
-      res,
-    );
+    await GStorage.setting.put(SettingBoxKey.defaultVideoQaCellular, res);
     setState();
   }
 }
@@ -305,10 +594,7 @@ Future<void> _showAudioCellularQaDialog(
     ),
   );
   if (res != null) {
-    await GStorage.setting.put(
-      SettingBoxKey.defaultAudioQaCellular,
-      res,
-    );
+    await GStorage.setting.put(SettingBoxKey.defaultAudioQaCellular, res);
     setState();
   }
 }
@@ -400,16 +686,11 @@ Future<void> _showAudioOutputDialog(
     builder: (context) => OrderedMultiSelectDialog<String>(
       title: '音频输出设备',
       initValues: Pref.audioOutput.split(','),
-      values: {
-        for (final e in AudioOutput.values) e.name: e.label,
-      },
+      values: {for (final e in AudioOutput.values) e.name: e.label},
     ),
   );
   if (res != null && res.isNotEmpty) {
-    await GStorage.setting.put(
-      SettingBoxKey.audioOutput,
-      res.join(','),
-    );
+    await GStorage.setting.put(SettingBoxKey.audioOutput, res.join(','));
     setState();
   }
 }
@@ -457,10 +738,7 @@ Future<void> _showHwDecDialog(
     ),
   );
   if (res != null && res.isNotEmpty) {
-    await GStorage.setting.put(
-      SettingBoxKey.hardwareDecoding,
-      res.join(','),
-    );
+    await GStorage.setting.put(SettingBoxKey.hardwareDecoding, res.join(','));
     setState();
   }
 }

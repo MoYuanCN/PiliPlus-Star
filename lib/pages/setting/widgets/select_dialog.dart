@@ -268,3 +268,29 @@ class _CdnSelectDialogState extends State<CdnSelectDialog> {
     );
   }
 }
+
+class BangumiCdnSelectDialog extends StatelessWidget {
+  const BangumiCdnSelectDialog({
+    super.key,
+    required this.title,
+    required this.selectedValue,
+    this.legacyLabel,
+  });
+
+  final String title;
+  final String selectedValue;
+  final String? legacyLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return SelectDialog<String>(
+      title: title,
+      values: [
+        ('follow', '跟随常规视频 CDN 设置'),
+        if (legacyLabel case final label?) ('legacy', '保留旧自定义 CDN：$label'),
+        ...CDNService.values.map((item) => (item.name, item.desc)),
+      ],
+      value: selectedValue,
+    );
+  }
+}
