@@ -61,25 +61,50 @@ abstract final class SearchHttp {
     int? pubEnd,
     String? gaiaVtoken,
     BangumiRegion? resolverRegion,
+    String? resolverCursor,
     required ValueChanged<String> onSuccess,
   }) async {
-    final params = await WbiSign.makSign({
-      'search_type': searchType.name,
-      'keyword': keyword,
-      'page': page,
-      if (order != null && order.isNotEmpty) 'order': order,
-      'duration': ?duration,
-      'tids': ?tids,
-      'order_sort': ?orderSort,
-      'user_type': ?userType,
-      'category_id': ?categoryId,
-      'pubtime_begin_s': ?pubBegin,
-      'pubtime_end_s': ?pubEnd,
-      'page_size': 20,
-      'platform': 'pc',
-      'web_location': 1430654,
-      'gaia_vtoken': ?gaiaVtoken,
-    });
+    final useIntlAppSearch =
+        resolverRegion == BangumiRegion.sea &&
+        searchType == SearchType.media_bangumi;
+    // The resolver maps this request to Intl APP SearchByType(type=7).
+    // App/device metadata and account credentials travel with the request;
+    // a resolver may build the protobuf without a local HAR template.
+    final params = useIntlAppSearch
+        ? <String, dynamic>{
+            'search_type': 'media_bangumi',
+            'keyword': keyword,
+            'page': page,
+            'page_size': 20,
+            'resolver_mode': BangumiRegion.sea.resolverMode,
+            'resolver_app_id': 14,
+            'resolver_mobi_app': 'android_i',
+            'resolver_build': 9130300,
+            'resolver_version': '6.6.0',
+            'resolver_channel': 'pink_overseas',
+            'resolver_platform': 'android',
+            'resolver_locale': 'zh-Hans-SG',
+            'resolver_timezone': 'Asia/Bangkok',
+            if (page > 1 && resolverCursor?.isNotEmpty == true)
+              'resolver_cursor': resolverCursor,
+          }
+        : await WbiSign.makSign({
+            'search_type': searchType.name,
+            'keyword': keyword,
+            'page': page,
+            if (order != null && order.isNotEmpty) 'order': order,
+            'duration': ?duration,
+            'tids': ?tids,
+            'order_sort': ?orderSort,
+            'user_type': ?userType,
+            'category_id': ?categoryId,
+            'pubtime_begin_s': ?pubBegin,
+            'pubtime_end_s': ?pubEnd,
+            'page_size': 20,
+            'platform': 'pc',
+            'web_location': 1430654,
+            'gaia_vtoken': ?gaiaVtoken,
+          });
     final res = resolverRegion == null
         ? await Request().get(
             searchType.api,
@@ -98,8 +123,15 @@ abstract final class SearchHttp {
             region: resolverRegion,
             path: searchType.api,
             query: params,
-            accountType: AccountType.recommend,
+            accountType: useIntlAppSearch
+                ? AccountType.video
+                : AccountType.recommend,
             includeResolverMode: true,
+            useAccountCredentials: true,
+            useIntlAppSearchMetadata: useIntlAppSearch,
+            receiveTimeout: useIntlAppSearch
+                ? const Duration(seconds: 45)
+                : const Duration(seconds: 20),
           );
     final resData = res.data;
     if (resData is Map) {
@@ -120,6 +152,9 @@ abstract final class SearchHttp {
             .article => SearchArticleData.fromJson(dataData),
           } as R;
           if (resolverRegion != null && parsed is SearchPgcData) {
+            if (useIntlAppSearch && page > 1) {
+              parsed.list?.removeWhere((item) => item.isResolverInjected);
+            }
             for (final item in parsed.list ?? const <SearchPgcItemModel>[]) {
               item.resolverRegionCode = resolverRegion.mode;
             }
@@ -172,6 +207,31 @@ abstract final class SearchHttp {
   }) async {
     final query = {'season_id': ?seasonId, 'ep_id': ?epId};
     Object? originalError;
+    final triedRegions = <BangumiRegion>{};
+    final preferredRegion = BangumiRegion.byMode(resolverRegionCode);
+    if (BangumiRegion.enabled &&
+        preferredRegion != null &&
+        BangumiRegion.configured.contains(preferredRegion)) {
+      triedRegions.add(preferredRegion);
+      try {
+        final proxy = await BangumiResolverRequest.get(
+          region: preferredRegion,
+          path: Api.pgcInfo,
+          query: query,
+          accountType: AccountType.heartbeat,
+        );
+        if (proxy.data is Map && proxy.data['code'] == 0) {
+          final regional = PgcInfoModel.fromJson(proxy.data['result']);
+          if (regional.episodes?.isNotEmpty == true ||
+              regional.section?.any(
+                    (section) => section.episodes?.isNotEmpty == true,
+                  ) ==
+                  true) {
+            return Success(regional);
+          }
+        }
+      } catch (_) {}
+    }
     try {
       final res = await Request().get(Api.pgcInfo, queryParameters: query);
       if (res.data['code'] == 0) {
@@ -190,6 +250,7 @@ abstract final class SearchHttp {
     }
     if (BangumiRegion.enabled) {
       for (final region in BangumiRegion.candidates(resolverRegionCode)) {
+        if (triedRegions.contains(region)) continue;
         try {
           final proxy = await BangumiResolverRequest.get(
             region: region,

@@ -91,39 +91,121 @@ class SearchPanelController<R extends SearchNumData<T>, T>
 
   String? gaiaVtoken;
   final Rxn<BangumiRegion> resolverRegion = Rxn<BangumiRegion>();
+  String? _resolverCursor;
+  int _resolverRequestGeneration = 0;
+
+  bool get _usesIntlAppSearch =>
+      searchType == SearchType.media_bangumi &&
+      resolverRegion.value == BangumiRegion.sea;
 
   Future<void> selectResolverRegion(BangumiRegion? region) async {
     if (resolverRegion.value == region) return;
+    _resolverRequestGeneration++;
     resolverRegion.value = region;
+    _resolverCursor = null;
     page = 1;
     isEnd = false;
     loadingState.value = LoadingState<List<T>?>.loading();
-    await queryData();
+    await queryDataSuperseding();
   }
 
   @override
-  Future<LoadingState<R>> customGetData() => SearchHttp.searchByType<R>(
-    searchType: searchType_,
-    keyword: keyword,
-    page: page,
-    order: order,
-    duration: videoDurationType?.index,
-    tids: videoZoneType?.tids,
-    orderSort: userOrderType?.value.orderSort,
-    userType: userType?.value.index,
-    categoryId: articleZoneType?.value.categoryId,
-    pubBegin: pubBegin,
-    pubEnd: pubEnd,
-    gaiaVtoken: gaiaVtoken,
-    resolverRegion: resolverRegion.value,
-    onSuccess: (String gaiaVtoken) {
-      this.gaiaVtoken = gaiaVtoken;
-      queryData(page == 1);
-    },
-  );
+  Future<LoadingState<R>> customGetData() async {
+    final requestGeneration = _resolverRequestGeneration;
+    final requestedPage = page;
+    final requestedRegion = resolverRegion.value;
+    final useIntlAppSearch =
+        searchType == SearchType.media_bangumi &&
+        requestedRegion == BangumiRegion.sea;
+    final requestedCursor = useIntlAppSearch ? _resolverCursor : null;
+    final result = await SearchHttp.searchByType<R>(
+      searchType: searchType_,
+      keyword: keyword,
+      page: requestedPage,
+      order: order,
+      duration: videoDurationType?.index,
+      tids: videoZoneType?.tids,
+      orderSort: userOrderType?.value.orderSort,
+      userType: userType?.value.index,
+      categoryId: articleZoneType?.value.categoryId,
+      pubBegin: pubBegin,
+      pubEnd: pubEnd,
+      gaiaVtoken: gaiaVtoken,
+      resolverRegion: requestedRegion,
+      resolverCursor: requestedCursor,
+      onSuccess: (String gaiaVtoken) {
+        if (requestGeneration != _resolverRequestGeneration) return;
+        this.gaiaVtoken = gaiaVtoken;
+        queryData(requestedPage == 1);
+      },
+    );
+    if (requestGeneration != _resolverRequestGeneration) return result;
+    if (result is Success<R> && result.response is SearchPgcData) {
+      final response = result.response as SearchPgcData;
+      _resolverCursor = response.nextCursor;
+      if (requestedRegion != null && response.list != null) {
+        final current = loadingState.value;
+        final previous = requestedPage > 1 && current is Success<List<T>?>
+            ? current.response ?? <T>[]
+            : <T>[];
+        final seen = <String>{};
+        for (final value in previous) {
+          if (value is SearchPgcItemModel) {
+            final key = _pgcResultKey(value);
+            if (key != null) seen.add(key);
+          }
+        }
+        response.list!.removeWhere((item) {
+          final key = _pgcResultKey(item);
+          if (item.isResolverInjected && key == null) return true;
+          return key != null && !seen.add(key);
+        });
+      }
+    }
+    return result;
+  }
+
+  String? _pgcResultKey(SearchPgcItemModel item) {
+    final link =
+        (item.gotoUrl?.trim().isNotEmpty == true ? item.gotoUrl : item.url)
+            ?.trim();
+    final title = item.title.map((part) => part.text).join().trim();
+    final cover = item.cover?.trim().toLowerCase() ?? '';
+    final area = item.areas?.trim().toLowerCase() ?? '';
+    if (item.isResolverInjected) {
+      if (link?.isNotEmpty == true) {
+        return 'injected:${link!.toLowerCase()}|${title.toLowerCase()}|$cover';
+      }
+      if (title.isEmpty) return null;
+      return 'injected:${title.toLowerCase()}|$area|$cover';
+    }
+    if (item.seasonId != null && item.seasonId! > 0) {
+      return 'season:${item.seasonId}';
+    }
+    if (item.mediaId != null && item.mediaId! > 0) {
+      return 'media:${item.mediaId}';
+    }
+    if (link?.isNotEmpty == true) return 'url:${link!.toLowerCase()}';
+    if (title.isEmpty) return null;
+    return 'title:${title.toLowerCase()}|$area|$cover';
+  }
+
+  @override
+  void checkIsEnd(int length) {
+    if (_usesIntlAppSearch && _resolverCursor?.isNotEmpty != true) {
+      isEnd = true;
+    }
+  }
+
+  @override
+  Future<void> onRefresh() {
+    _resolverCursor = null;
+    return super.onRefresh();
+  }
 
   @override
   Future<void> onReload() {
+    _resolverCursor = null;
     scrollController.jumpToTop();
     return super.onReload();
   }

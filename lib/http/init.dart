@@ -233,11 +233,32 @@ class Request {
 
     // 日志拦截器 输出请求、响应内容
     if (kDebugMode) {
+      final logger = LogInterceptor(
+        request: false,
+        requestHeader: false,
+        responseHeader: false,
+      );
       dio.interceptors.add(
-        LogInterceptor(
-          request: false,
-          requestHeader: false,
-          responseHeader: false,
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            if (options.extra['suppressResolverErrors'] == true) {
+              return handler.next(options);
+            }
+            logger.onRequest(options, handler);
+          },
+          onResponse: (response, handler) {
+            if (response.requestOptions.extra['suppressResolverErrors'] ==
+                true) {
+              return handler.next(response);
+            }
+            logger.onResponse(response, handler);
+          },
+          onError: (error, handler) {
+            if (error.requestOptions.extra['suppressResolverErrors'] == true) {
+              return handler.next(error);
+            }
+            logger.onError(error, handler);
+          },
         ),
       );
     }

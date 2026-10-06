@@ -390,10 +390,13 @@ class SearchLiveItemModel {
 }
 
 class SearchPgcData extends SearchNumData<SearchPgcItemModel> {
-  SearchPgcData({super.numResults, super.list});
+  SearchPgcData({super.numResults, super.list, this.nextCursor});
+
+  String? nextCursor;
 
   SearchPgcData.fromJson(Map<String, dynamic> json) {
     numResults = (json['numResults'] as num?)?.toInt();
+    nextCursor = (json['next'] ?? json['next_cursor'])?.toString();
     list = (json['result'] as List?)
         ?.map<SearchPgcItemModel>((e) => SearchPgcItemModel.fromJson(e))
         .toList();
@@ -424,9 +427,15 @@ class SearchPgcItemModel {
     this.gotoUrl,
     this.desc,
     this.pubtime,
+    this.fixPubtimeStr,
     this.mediaMode,
     this.mediaScore,
     this.indexShow,
+    this.episodeCount,
+    this.allNetName,
+    this.label,
+    this.badgeTexts = const [],
+    this.isResolverInjected = false,
   });
 
   String? type;
@@ -451,37 +460,102 @@ class SearchPgcItemModel {
   String? gotoUrl;
   String? desc;
   int? pubtime;
+  String? fixPubtimeStr;
   int? mediaMode;
   Map? mediaScore;
   String? indexShow;
+  int? episodeCount;
+  String? allNetName;
+  String? label;
+  late List<String> badgeTexts;
   String? resolverRegionCode;
+  late bool isResolverInjected;
+
+  static int? _intValue(dynamic value) => switch (value) {
+    final int number => number,
+    final num number => number.toInt(),
+    final String text => int.tryParse(text),
+    _ => null,
+  };
+
+  static String? _textValue(dynamic value) => switch (value) {
+    final String text => text,
+    final num number => number.toString(),
+    _ => null,
+  };
+
+  static List<String> _badgeTextValues(dynamic value) {
+    if (value is! List) return const [];
+    final result = <String>[];
+    for (final badge in value) {
+      final text = badge is Map
+          ? _textValue(
+              badge['text'] ??
+                  badge['title'] ??
+                  badge['name'] ??
+                  badge['content'] ??
+                  badge['label'],
+            )
+          : _textValue(badge);
+      if (text != null && text.trim().isNotEmpty) result.add(text.trim());
+    }
+    return result;
+  }
 
   SearchPgcItemModel.fromJson(Map<String, dynamic> json) {
     type = json['type'];
-    mediaId = json['media_id'];
+    mediaId = _intValue(json['media_id']);
     title = Em.regTitle(json['title']);
-    orgTitle = json['org_title'];
-    mediaType = json['media_type'];
-    cv = json['cv'];
-    staff = json['staff'];
-    seasonId = json['season_id'];
+    orgTitle = _textValue(json['org_title'] ?? json['original_title']);
+    mediaType = _intValue(json['media_type']);
+    cv = _textValue(json['cv']);
+    staff = _textValue(json['staff']);
+    seasonId = _intValue(json['season_id']);
     isAvid = json['is_avid'];
     hitEpids = json['hit_epids'];
-    seasonType = json['season_type'];
-    seasonTypeName = json['season_type_name'];
-    url = json['url'];
-    buttonText = json['button_text'];
-    isFollow = json['is_follow'];
-    isSelection = json['is_selection'];
-    cover = json['cover'];
-    areas = json['areas'];
-    styles = json['styles'];
-    gotoUrl = json['goto_url'];
-    desc = json['desc'];
-    pubtime = json['pubtime'];
-    mediaMode = json['media_mode'];
-    mediaScore = json['media_score'];
-    indexShow = json['index_show'];
+    seasonType = _intValue(json['season_type']);
+    seasonTypeName = _textValue(json['season_type_name']);
+    url = _textValue(json['url']);
+    buttonText = _textValue(json['button_text']);
+    isFollow = _intValue(json['is_follow']);
+    isSelection = _intValue(json['is_selection']);
+    cover = _textValue(json['cover']);
+    areas = _textValue(json['areas'] ?? json['area']);
+    styles = _textValue(json['styles'] ?? json['style'] ?? json['styles_v2']);
+    gotoUrl = _textValue(json['goto_url'] ?? json['goto'] ?? json['uri']);
+    desc = _textValue(json['desc'] ?? json['description'] ?? json['prompt']);
+    pubtime = _intValue(json['pubtime']);
+    fixPubtimeStr = json['fix_pubtime_str']?.toString();
+    mediaMode = _intValue(json['media_mode']);
+    final score = json['media_score'];
+    mediaScore = score is Map
+        ? score
+        : _intValue(json['rating']) != null
+        ? {'score': json['rating'], 'user_count': json['vote']}
+        : null;
+    indexShow = _textValue(json['index_show'] ?? json['play_state']);
+    final episodes = json['episodes'] ?? json['eps'];
+    episodeCount =
+        _intValue(json['ep_size'] ?? json['num_episodes']) ??
+        (episodes is List ? episodes.length : null);
+    allNetName = _textValue(json['all_net_name'] ?? json['out_name']);
+    final styleLabel = json['style_label'];
+    label =
+        _textValue(json['label'] ?? json['angle_title']) ??
+        (styleLabel is Map
+            ? _textValue(
+                styleLabel['text'] ?? styleLabel['title'] ?? styleLabel['name'],
+              )
+            : null);
+    badgeTexts = [
+      ..._badgeTextValues(json['badges']),
+      ..._badgeTextValues(json['badges_v2']),
+      ..._badgeTextValues(json['display_info']),
+    ].toSet().toList(growable: false);
+    isResolverInjected =
+        json['resolver_injected'] == true ||
+        json['is_resolver_injected'] == true ||
+        json['resolver_injection_source'] == 'Bilibili-Region-Proxy';
   }
 }
 

@@ -21,6 +21,7 @@ import 'package:PiliPlus/models/common/sponsor_block/post_segment_model.dart';
 import 'package:PiliPlus/models/common/sponsor_block/segment_model.dart';
 import 'package:PiliPlus/models/common/sponsor_block/segment_type.dart';
 import 'package:PiliPlus/models/common/video/audio_quality.dart';
+import 'package:PiliPlus/models/common/video/cdn_type.dart';
 import 'package:PiliPlus/models/common/video/source_type.dart';
 import 'package:PiliPlus/models/common/video/video_decode_type.dart';
 import 'package:PiliPlus/models/common/video/video_quality.dart';
@@ -135,8 +136,11 @@ class VideoDetailController extends GetxController
 
   late VideoItem firstVideo;
   String? videoUrl;
-  String? get _bangumiCdnHost =>
-      BangumiRegion.byMode(data.resolverRegionCode)?.cdn;
+  BangumiRegion? get _bangumiRegion => BangumiRegion.byMode(
+    args['bangumiResolverRegion'] ?? data.resolverRegionCode,
+  );
+  CDNService? get _bangumiCdnService => _bangumiRegion?.cdnService;
+  String? get _bangumiCdnHost => _bangumiRegion?.legacyCdnHost;
   String? audioUrl;
   Duration? defaultST;
   Duration? playedTime;
@@ -699,6 +703,7 @@ class VideoDetailController extends GetxController
     firstVideo = findVideoByQa(currentVideoQa.code, setCodecs: true);
     videoUrl = VideoUtils.getCdnUrl(
       firstVideo.playUrls,
+      cdnServiceOverride: _bangumiCdnService,
       cdnHostOverride: _bangumiCdnHost,
     );
 
@@ -711,6 +716,7 @@ class VideoDetailController extends GetxController
       audioUrl = VideoUtils.getCdnUrl(
         firstAudio.playUrls,
         isAudio: true,
+        cdnServiceOverride: _bangumiCdnService,
         cdnHostOverride: _bangumiCdnHost,
       );
     }
@@ -908,6 +914,7 @@ class VideoDetailController extends GetxController
             for (var i in durl) {
               final video = VideoUtils.getCdnUrl(
                 i.playUrls,
+                cdnServiceOverride: _bangumiCdnService,
                 cdnHostOverride: _bangumiCdnHost,
               );
               sb.write('%${video.length}%$video,length=${i.length! / 1000};');
@@ -916,6 +923,7 @@ class VideoDetailController extends GetxController
           } else {
             videoUrl = VideoUtils.getCdnUrl(
               durl.single.playUrls,
+              cdnServiceOverride: _bangumiCdnService,
               cdnHostOverride: _bangumiCdnHost,
             );
           }
@@ -979,6 +987,7 @@ class VideoDetailController extends GetxController
 
       videoUrl = VideoUtils.getCdnUrl(
         firstVideo.playUrls,
+        cdnServiceOverride: _bangumiCdnService,
         cdnHostOverride: _bangumiCdnHost,
       );
 
@@ -1002,6 +1011,7 @@ class VideoDetailController extends GetxController
         audioUrl = VideoUtils.getCdnUrl(
           firstAudio.playUrls,
           isAudio: true,
+          cdnServiceOverride: _bangumiCdnService,
           cdnHostOverride: _bangumiCdnHost,
         );
         currentAudioQa = AudioQuality.fromCode(firstAudio.id);

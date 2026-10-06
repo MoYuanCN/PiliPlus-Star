@@ -526,11 +526,25 @@ abstract final class PageUtils {
   static bool viewPgcFromUri(
     String uri, {
     bool isPgc = true,
+    String? resolverRegionCode,
     int? progress, // milliseconds
     int? aid,
     bool off = false,
   }) {
     RegExpMatch? match = _pgcRegex.firstMatch(uri);
+    final schemeSeasonMatch = RegExp(
+      r'bilibili://bangumi/season/(\d+)',
+      caseSensitive: false,
+    ).firstMatch(uri);
+    if (match == null && schemeSeasonMatch != null) {
+      viewPgc(
+        seasonId: schemeSeasonMatch.group(1),
+        resolverRegionCode: resolverRegionCode,
+        progress: progress,
+        off: off,
+      );
+      return true;
+    }
     if (match != null) {
       bool isSeason = match.group(1) == 'ss';
       String id = match.group(2)!;
@@ -538,6 +552,7 @@ abstract final class PageUtils {
         viewPgc(
           seasonId: isSeason ? id : null,
           epId: isSeason ? null : id,
+          resolverRegionCode: resolverRegionCode,
           progress: progress,
           off: off,
         );

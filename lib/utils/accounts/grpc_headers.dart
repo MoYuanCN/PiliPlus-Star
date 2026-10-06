@@ -6,6 +6,7 @@ import 'package:PiliPlus/grpc/bilibili/metadata/device.pb.dart';
 import 'package:PiliPlus/grpc/bilibili/metadata/fawkes.pb.dart';
 import 'package:PiliPlus/grpc/bilibili/metadata/locale.pb.dart';
 import 'package:PiliPlus/grpc/bilibili/metadata/network.pb.dart' as network;
+import 'package:PiliPlus/grpc/bilibili/metadata/restriction.pb.dart';
 import 'package:PiliPlus/utils/login_utils.dart';
 import 'package:PiliPlus/utils/utils.dart';
 
@@ -15,6 +16,14 @@ abstract final class GrpcHeaders {
   static const _biliChannel = 'master';
   static const _mobiApp = 'android_hd';
   static const _device = 'android';
+
+  // Fixed app identity observed in the international Android app's
+  // SearchByType request. Authentication and user identity remain dynamic.
+  static const _intlAppId = 14;
+  static const _intlBuild = 9130300;
+  static const _intlVersionName = '6.6.0';
+  static const _intlMobiApp = 'android_i';
+  static const _intlChannel = 'pink_overseas';
 
   static String get _buvid => LoginUtils.buvid;
   static String get _traceId => Constants.traceId;
@@ -81,6 +90,79 @@ abstract final class GrpcHeaders {
           platform: _device,
         ).writeToBuffer(),
       ),
+    };
+  }
+
+  static Map<String, String> newIntlSearchHeaders({
+    required String? accessKey,
+    required int mid,
+    required String buvid,
+    String? auroraEid,
+  }) {
+    const device = 'android';
+    final localeIds = LocaleIds(
+      language: 'zh',
+      script: 'Hans',
+      region: 'SG',
+    );
+    final deviceMetadata = Device(
+      appId: _intlAppId,
+      build: _intlBuild,
+      buvid: buvid,
+      mobiApp: _intlMobiApp,
+      platform: device,
+      channel: _intlChannel,
+      osver: '15',
+      versionName: _intlVersionName,
+    );
+    final appMetadata = Metadata(
+      accessKey: accessKey,
+      mobiApp: _intlMobiApp,
+      device: device,
+      build: _intlBuild,
+      channel: _intlChannel,
+      buvid: buvid,
+      platform: device,
+    );
+    final localeMetadata = Locale(
+      cLocale: localeIds,
+      sLocale: localeIds,
+      timezone: 'Asia/Bangkok',
+    );
+    return {
+      'user-agent':
+          'Mozilla/5.0 BiliDroid/$_intlVersionName os/android model/android '
+          'mobi_app/$_intlMobiApp build/$_intlBuild channel/$_intlChannel '
+          'innerVer/$_intlBuild osVer/15 network/2',
+      'grpc-accept-encoding': 'gzip,identity',
+      'x-bili-gaia-vtoken': '',
+      'x-bili-aurora-zone': '',
+      'x-bili-trace-id': _traceId,
+      'buvid': buvid,
+      'bili-http-engine': 'cronet',
+      'x-bili-device-bin': base64Encode(deviceMetadata.writeToBuffer()),
+      'x-bili-network-bin': base64Encode(
+        network.Network(type: network.NetworkType.WIFI).writeToBuffer(),
+      ),
+      'x-bili-locale-bin': base64Encode(localeMetadata.writeToBuffer()),
+      'x-bili-fawkes-req-bin': base64Encode(
+        FawkesReq(
+          appkey: _intlMobiApp,
+          env: 'prod',
+          sessionId: _sessionId,
+        ).writeToBuffer(),
+      ),
+      'x-bili-metadata-bin': base64Encode(appMetadata.writeToBuffer()),
+      'x-bili-restriction-bin': base64Encode(
+        Restriction().writeToBuffer(),
+      ),
+      'x-bili-exps-bin': '',
+      'x-bili-mid': '$mid',
+      if (auroraEid?.isNotEmpty == true) 'x-bili-aurora-eid': auroraEid!,
+      if (accessKey?.isNotEmpty == true)
+        'authorization': 'identify_v1 $accessKey',
+      'x-bili-metadata-ip-region': 'TH',
+      'x-bili-metadata-legal-region': 'TH',
     };
   }
 }

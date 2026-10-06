@@ -23,6 +23,61 @@ import 'package:get/get.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:material_ui/material_ui.dart';
 
+enum _ResolverModeOption { cn, hk, mo, tw, th, intl, sea, custom }
+
+const _resolverModeChoices = <(_ResolverModeOption, String)>[
+  (_ResolverModeOption.cn, 'CN'),
+  (_ResolverModeOption.hk, 'HK'),
+  (_ResolverModeOption.mo, 'MO'),
+  (_ResolverModeOption.tw, 'TW'),
+  (_ResolverModeOption.th, 'TH（兼容值）'),
+  (_ResolverModeOption.intl, 'INTL'),
+  (_ResolverModeOption.sea, 'SEA'),
+  (_ResolverModeOption.custom, '自定义'),
+];
+
+const _resolverModeDescriptions = <String>[
+  '中国大陆普通 HTTP 搜索',
+  '香港普通 HTTP 搜索',
+  '澳门普通 HTTP 搜索',
+  '台湾普通 HTTP 搜索',
+  'Intl APP gRPC 搜索；东南亚设置会规范为 INTL',
+  'Intl APP gRPC 搜索；东南亚默认值',
+  'Intl APP gRPC 搜索',
+  '按解析服务器要求填写自定义值',
+];
+
+_ResolverModeOption _resolverModeOption(String value) => switch (
+  value.toUpperCase()
+) {
+  'CN' => _ResolverModeOption.cn,
+  'HK' => _ResolverModeOption.hk,
+  'MO' => _ResolverModeOption.mo,
+  'TW' => _ResolverModeOption.tw,
+  'TH' => _ResolverModeOption.th,
+  'INTL' => _ResolverModeOption.intl,
+  'SEA' => _ResolverModeOption.sea,
+  _ => _ResolverModeOption.custom,
+};
+
+String _resolverModeValue(_ResolverModeOption option) => switch (option) {
+  _ResolverModeOption.cn => 'CN',
+  _ResolverModeOption.hk => 'HK',
+  _ResolverModeOption.mo => 'MO',
+  _ResolverModeOption.tw => 'TW',
+  _ResolverModeOption.th => 'TH',
+  _ResolverModeOption.intl => 'INTL',
+  _ResolverModeOption.sea => 'SEA',
+  _ResolverModeOption.custom => '',
+};
+
+String _resolverModeSubtitle(BangumiRegion region) {
+  final mode = region.resolverMode;
+  return _resolverModeOption(mode) == _ResolverModeOption.custom
+      ? '$mode（自定义）'
+      : '$mode（默认：${region.mode}）';
+}
+
 List<SettingsModel> get videoSettings => [
   const SwitchModel(
     title: '开启硬解',
@@ -65,7 +120,7 @@ List<SettingsModel> get videoSettings => [
   ),
   const SwitchModel(
     title: '自定义番剧解析服务器',
-    subtitle: '开启后按地区使用下方服务器；请求会携带当前账号凭据，请仅填写可信服务器',
+    subtitle: '开启后使用自定义解析服务器搜索观看特定区域的番剧',
     leading: Icon(Icons.travel_explore_outlined),
     setKey: SettingBoxKey.enableBangumiResolver,
   ),
@@ -88,14 +143,22 @@ List<SettingsModel> get videoSettings => [
       ).then((_) => setState()),
     ),
     NormalModel(
+      title: '${region.label} resolver_mode',
+      getSubtitle: () => _resolverModeSubtitle(region),
+      leading: const Icon(Icons.tune_outlined),
+      onTap: (context, setState) =>
+          _editResolverMode(context, region).then((_) => setState()),
+    ),
+    NormalModel(
       title: '${region.label}番剧 CDN',
       leading: const Icon(MdiIcons.cloudOutline),
-      getSubtitle: () => region.cdn.isEmpty ? '跟随 CDN 设置' : region.cdn,
-      onTap: (context, setState) => _editResolverValue(
-        context,
-        region.cdnKey,
-        '${region.label}番剧 CDN host',
-      ).then((_) => setState()),
+      getSubtitle: () => switch ((region.cdnService, region.legacyCdnHost)) {
+        (final service?, _) => service.desc,
+        (null, final host?) => '旧自定义 CDN：$host',
+        _ => '跟随常规视频 CDN 设置',
+      },
+      onTap: (context, setState) =>
+          _showBangumiCdnDialog(context, region).then((_) => setState()),
     ),
   ],
   NormalModel(
@@ -257,9 +320,11 @@ Future<void> _editResolverValue(
         autofocus: true,
         keyboardType: TextInputType.url,
         onChanged: (text) => value = text.trim(),
-        decoration: const InputDecoration(
-          hintText: '留空则不使用',
-          border: OutlineInputBorder(),
+        decoration: InputDecoration(
+          hintText: key.startsWith('bangumiResolver')
+              ? '域名或 HTTP(S) 地址；公网默认 HTTPS，私网或非 443 端口默认 HTTP'
+              : '留空则不使用',
+          border: const OutlineInputBorder(),
         ),
       ),
       actions: [
@@ -274,19 +339,114 @@ Future<void> _editResolverValue(
   if (result == null) return;
   if (result.isNotEmpty &&
       (key.startsWith('bangumiResolver') || key.startsWith('bangumiCdn'))) {
-    final uri = Uri.tryParse(result);
     final isCdn = key.startsWith('bangumiCdn');
-    if (uri == null ||
-        (isCdn
-            ? uri.host.isEmpty
-            : !{'http', 'https'}.contains(uri.scheme) || uri.host.isEmpty)) {
-      SmartDialog.showToast(
-        isCdn ? '请输入有效 CDN host' : '请输入有效的 HTTP 或 HTTPS URL',
-      );
-      return;
+    if (isCdn) {
+      final uri = Uri.tryParse(result);
+      if (uri == null || uri.host.isEmpty) {
+        SmartDialog.showToast('请输入有效 CDN host');
+        return;
+      }
+    } else {
+      try {
+        value = BangumiRegion.normalizeResolverAddress(result);
+      } on FormatException {
+        SmartDialog.showToast('请输入域名或 HTTP(S) 地址，例如 intl.pre-s.com');
+        return;
+      }
     }
   }
-  await GStorage.setting.put(key, result);
+  await GStorage.setting.put(key, value);
+}
+
+Future<void> _editResolverMode(
+  BuildContext context,
+  BangumiRegion region,
+) async {
+  final currentMode = region.resolverMode;
+  final currentOption = _resolverModeOption(currentMode);
+  final result = await showDialog<_ResolverModeOption>(
+    context: context,
+    builder: (context) => SelectDialog<_ResolverModeOption>(
+      value: currentOption,
+      title: '${region.label} resolver_mode（不清楚时保持默认）',
+      values: _resolverModeChoices,
+      subtitleBuilder: (context, index) => Text(
+        _resolverModeDescriptions[index],
+      ),
+    ),
+  );
+  if (result == null) return;
+
+  if (result == _ResolverModeOption.custom) {
+    final initialValue = currentOption == _ResolverModeOption.custom
+        ? currentMode
+        : '';
+    final customMode = await _editCustomResolverMode(
+      context,
+      region,
+      initialValue,
+    );
+    if (customMode == null) return;
+    await GStorage.setting.put(region.resolverModeKey, customMode);
+    return;
+  }
+
+  await GStorage.setting.put(
+    region.resolverModeKey,
+    _resolverModeValue(result),
+  );
+}
+
+Future<String?> _editCustomResolverMode(
+  BuildContext context,
+  BangumiRegion region,
+  String initialValue,
+) async {
+  var value = initialValue;
+  return showDialog<String>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text('${region.label}自定义 resolver_mode'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '自定义值会随番剧搜索发送给解析服务器。东南亚的 TH 会按兼容规则规范为 INTL。不清楚时请使用默认值 ${region.mode}。',
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            initialValue: initialValue,
+            autofocus: true,
+            maxLength: 64,
+            keyboardType: TextInputType.text,
+            onChanged: (text) => value = text.trim(),
+            decoration: const InputDecoration(
+              hintText: '输入解析服务器要求的值',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: const Text('取消'),
+        ),
+        TextButton(
+          onPressed: () {
+            final result = value.trim();
+            if (result.isEmpty) {
+              SmartDialog.showToast('请输入自定义 resolver_mode');
+              return;
+            }
+            Navigator.of(dialogContext).pop(result);
+          },
+          child: const Text('保存'),
+        ),
+      ],
+    ),
+  );
 }
 
 Future<void> _showCDNDialog(BuildContext context, VoidCallback setState) async {
@@ -299,6 +459,28 @@ Future<void> _showCDNDialog(BuildContext context, VoidCallback setState) async {
     await GStorage.setting.put(SettingBoxKey.CDNService, res.name);
     setState();
   }
+}
+
+Future<void> _showBangumiCdnDialog(
+  BuildContext context,
+  BangumiRegion region,
+) async {
+  final selectedValue =
+      region.cdnService?.name ??
+      (region.legacyCdnHost == null ? 'follow' : 'legacy');
+  final result = await showDialog<String>(
+    context: context,
+    builder: (context) => BangumiCdnSelectDialog(
+      title: '${region.label}番剧 CDN',
+      selectedValue: selectedValue,
+      legacyLabel: region.legacyCdnHost,
+    ),
+  );
+  if (result == null || result == 'legacy') return;
+  await GStorage.setting.put(
+    region.cdnKey,
+    result == 'follow' ? '' : result,
+  );
 }
 
 Future<void> _showLiveCDNDialog(

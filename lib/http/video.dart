@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:PiliPlus/common/constants.dart';
@@ -253,6 +254,18 @@ abstract final class VideoHttp {
       'cur_language': ?language,
     });
 
+    final triedRegionalResolversEarly =
+        videoType == .pgc &&
+        resolverRegionCode != null &&
+        BangumiRegion.enabled;
+    if (triedRegionalResolversEarly) {
+      final resolved = await _regionalPlayUrl(
+        params,
+        path: videoType.api,
+      );
+      if (resolved != null) return Success(resolved);
+    }
+
     try {
       final res = await Request().get(videoType.api, queryParameters: params);
 
@@ -274,11 +287,12 @@ abstract final class VideoHttp {
               ..lastPlayTime =
                   result['play_view_business_info']?['user_status']?['watch_progress']?['current_watch_progress'];
         }
-        if (videoType == .pgc && !hasPlayableStream(data)) {
+        if (videoType == .pgc &&
+            !hasPlayableStream(data) &&
+            !triedRegionalResolversEarly) {
           final resolved = await _regionalPlayUrl(
             params,
             path: videoType.api,
-            resolverRegionCode: resolverRegionCode,
           );
           if (resolved != null) return Success(resolved);
         }
@@ -296,21 +310,19 @@ abstract final class VideoHttp {
           resolverRegionCode: resolverRegionCode,
         );
       }
-      if (videoType == .pgc) {
+      if (videoType == .pgc && !triedRegionalResolversEarly) {
         final resolved = await _regionalPlayUrl(
           params,
           path: videoType.api,
-          resolverRegionCode: resolverRegionCode,
         );
         if (resolved != null) return Success(resolved);
       }
       return Error(_parseVideoErr(res.data['code'], res.data['message']));
     } catch (e, s) {
-      if (videoType == .pgc) {
+      if (videoType == .pgc && !triedRegionalResolversEarly) {
         final resolved = await _regionalPlayUrl(
           params,
           path: videoType.api,
-          resolverRegionCode: resolverRegionCode,
         );
         if (resolved != null) return Success(resolved);
       }
@@ -321,29 +333,51 @@ abstract final class VideoHttp {
   static Future<PlayUrlModel?> _regionalPlayUrl(
     Map<String, dynamic> params, {
     required String path,
-    String? resolverRegionCode,
   }) async {
     if (!BangumiRegion.enabled) return null;
-    for (final region in BangumiRegion.candidates(resolverRegionCode)) {
+    final regions = BangumiRegion.configured;
+    if (regions.isEmpty) return null;
+
+    final firstPlayable = Completer<PlayUrlModel?>();
+    final cancelToken = CancelToken();
+    var remaining = regions.length;
+
+    Future<void> requestRegion(BangumiRegion region) async {
       try {
         final response = await BangumiResolverRequest.get(
           region: region,
           path: path,
           query: params,
           accountType: AccountType.video,
+          suppressResolverErrors: true,
+          cancelToken: cancelToken,
         );
         final body = response.data;
-        if (body is! Map || body['code'] != 0) continue;
-        final json = body['result']?['video_info'];
-        if (json is! Map) continue;
-        final model = PlayUrlModel.fromJson(Map<String, dynamic>.from(json))
-          ..resolverRegionCode = region.mode;
-        if (hasPlayableStream(model)) return model;
+        if (body is Map && body['code'] == 0) {
+          final json = body['result']?['video_info'];
+          if (json is Map) {
+            final model = PlayUrlModel.fromJson(Map<String, dynamic>.from(json))
+              ..resolverRegionCode = region.mode;
+            if (hasPlayableStream(model) && !firstPlayable.isCompleted) {
+              firstPlayable.complete(model);
+              cancelToken.cancel('A resolver returned a playable stream');
+            }
+          }
+        }
       } catch (_) {
-        // Each configured resolver is attempted at most once.
+        // Resolver failures are expected while racing regional endpoints.
+      } finally {
+        remaining--;
+        if (remaining == 0 && !firstPlayable.isCompleted) {
+          firstPlayable.complete(null);
+        }
       }
     }
-    return null;
+
+    for (final region in regions) {
+      unawaited(requestRegion(region));
+    }
+    return firstPlayable.future;
   }
 
   static bool hasPlayableStream(PlayUrlModel model) =>
@@ -960,16 +994,35 @@ abstract final class VideoHttp {
     String subtitleUrl, {
     SubtitleFormat format = .vtt,
   }) async {
-    final res = await Request().get("https:$subtitleUrl");
-    if (res.data?['body'] case List list) {
+    final value = subtitleUrl.trim();
+    final url = value.startsWith('//')
+        ? 'https:$value'
+        : RegExp(r'^https?://', caseSensitive: false).hasMatch(value)
+        ? value
+        : 'https://$value';
+    final res = await Request().get(url);
+    final body = res.data is Map ? res.data['body'] : null;
+    if (body is List) {
       switch (format) {
         case .json:
           throw UnimplementedError();
         case .vtt:
-          return compute<List, String>(SubtitleUtils.json2Vtt, list);
+          return compute<List, String>(SubtitleUtils.json2Vtt, body);
         case .srt:
-          return compute<List, String>(SubtitleUtils.json2Srt, list);
+          return compute<List, String>(SubtitleUtils.json2Srt, body);
       }
+    }
+    final rawText = switch (res.data) {
+      final String text => text,
+      final List<int> bytes => utf8.decode(bytes, allowMalformed: true),
+      _ => body is String ? body : null,
+    };
+    if (format == .vtt && rawText != null) {
+      final content = rawText.replaceFirst('\uFEFF', '');
+      if (SubtitleUtils.isAss(content)) {
+        return compute<String, String>(SubtitleUtils.ass2Vtt, content);
+      }
+      if (content.trimLeft().startsWith('WEBVTT')) return content;
     }
     return null;
   }

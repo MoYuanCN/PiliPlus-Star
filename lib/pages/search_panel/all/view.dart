@@ -92,7 +92,7 @@ class _SearchAllPanelState
   static Widget _buildPgc(List<SearchPgcItemModel> list) {
     final Widget child;
     if (list.length == 1) {
-      child = SearchPgcItem(item: list.first);
+      child = SearchPgcItem(item: list.first, compact: true);
     } else {
       child = ListView.builder(
         padding: .zero,
@@ -101,7 +101,7 @@ class _SearchAllPanelState
         scrollDirection: .horizontal,
         physics: const AlwaysScrollableScrollPhysics(),
         itemBuilder: (context, index) {
-          return SearchPgcItem(item: list[index]);
+          return SearchPgcItem(item: list[index], compact: true);
         },
       );
     }

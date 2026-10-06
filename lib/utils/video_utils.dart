@@ -23,10 +23,11 @@ abstract final class VideoUtils {
   static String getCdnUrl(
     Iterable<String> urls, {
     CDNService? defaultCDNService,
+    CDNService? cdnServiceOverride,
     String? cdnHostOverride,
     bool isAudio = false,
   }) {
-    defaultCDNService ??= cdnService;
+    defaultCDNService ??= cdnServiceOverride ?? cdnService;
     final overrideHost =
         cdnHostOverride == null || cdnHostOverride.trim().isEmpty
         ? null
