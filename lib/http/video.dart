@@ -993,6 +993,7 @@ abstract final class VideoHttp {
   static Future<String?> getSubtitles(
     String subtitleUrl, {
     SubtitleFormat format = .vtt,
+    bool preserveAss = false,
   }) async {
     final value = subtitleUrl.trim();
     final url = value.startsWith('//')
@@ -1020,6 +1021,7 @@ abstract final class VideoHttp {
     if (format == .vtt && rawText != null) {
       final content = rawText.replaceFirst('\uFEFF', '');
       if (SubtitleUtils.isAss(content)) {
+        if (preserveAss) return content;
         return compute<String, String>(SubtitleUtils.ass2Vtt, content);
       }
       if (content.trimLeft().startsWith('WEBVTT')) return content;

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show File;
 import 'dart:math' show min;
 import 'dart:ui';
 
@@ -56,14 +57,17 @@ import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/bangumi_resolver.dart';
 import 'package:PiliPlus/utils/connectivity_utils.dart';
 import 'package:PiliPlus/utils/extension/context_ext.dart';
+import 'package:PiliPlus/utils/extension/file_ext.dart';
 import 'package:PiliPlus/utils/extension/iterable_ext.dart';
 import 'package:PiliPlus/utils/extension/nested_scroll_ext.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/extension/size_ext.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
+import 'package:PiliPlus/utils/path_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
+import 'package:PiliPlus/utils/subtitle_utils.dart';
 import 'package:PiliPlus/utils/theme_utils.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:PiliPlus/utils/video_utils.dart';
@@ -78,6 +82,7 @@ import 'package:get/get.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:media_kit/media_kit.dart' hide Subtitle;
+import 'package:path/path.dart' as path;
 
 class VideoDetailController extends GetxController
     with GetTickerProviderStateMixin, BlockMixin {
@@ -1068,6 +1073,7 @@ class VideoDetailController extends GetxController
 
   RxList<Subtitle> subtitles = RxList<Subtitle>();
   final Map<int, ({bool isData, String id})> vttSubtitles = {};
+  final Set<File> _assSubtitleFiles = {};
   late final vttSubtitlesIndex = (-1).obs;
   late final showVP = true.obs;
   late final viewPointList = <ViewPointSegment>[].obs;
@@ -1097,9 +1103,26 @@ class VideoDetailController extends GetxController
     if (subtitle == null) {
       final result = await VideoHttp.getSubtitles(
         subtitles[index - 1].subtitleUrl!,
+        preserveAss: true,
       );
       if (!isClosed && result != null) {
-        subtitle = (isData: true, id: result);
+        if (SubtitleUtils.isAss(result)) {
+          final file = File(
+            path.join(
+              tmpDirPath,
+              'piliplus-subtitle-${Utils.generateRandomString(16)}.ass',
+            ),
+          );
+          await file.writeAsString(result, flush: true);
+          if (isClosed) {
+            await file.tryDel();
+            return;
+          }
+          _assSubtitleFiles.add(file);
+          subtitle = (isData: false, id: file.path);
+        } else {
+          subtitle = (isData: true, id: result);
+        }
         vttSubtitles[index - 1] = subtitle;
       } else {
         return;
@@ -1140,6 +1163,7 @@ class VideoDetailController extends GetxController
 
   Future<void> _queryPlayInfo() async {
     vttSubtitles.clear();
+    await _clearAssSubtitleFiles();
     vttSubtitlesIndex.value = 0;
     if (plPlayerController.showViewPoints) {
       viewPointList.clear();
@@ -1243,6 +1267,12 @@ class VideoDetailController extends GetxController
     await setSubtitle(idx);
   }
 
+  Future<void> _clearAssSubtitleFiles() async {
+    final files = _assSubtitleFiles.toList();
+    _assSubtitleFiles.clear();
+    await Future.wait(files.map((file) => file.tryDel()));
+  }
+
   void updateMediaListHistory(int aid) {
     if (args['sortField'] != null) {
       VideoHttp.medialistHistory(
@@ -1293,6 +1323,7 @@ class VideoDetailController extends GetxController
       ..dispose();
     subtitles.clear();
     vttSubtitles.clear();
+    unawaited(_clearAssSubtitleFiles());
     super.onClose();
   }
 
@@ -1313,6 +1344,7 @@ class VideoDetailController extends GetxController
     subtitles.clear();
     vttSubtitlesIndex.value = -1;
     vttSubtitles.clear();
+    unawaited(_clearAssSubtitleFiles());
 
     // sponsor block
     if (blockConfig.enableBlock) {
