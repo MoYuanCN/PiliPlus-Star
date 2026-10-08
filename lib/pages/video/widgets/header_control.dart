@@ -1,6 +1,6 @@
 import 'dart:async' show Timer;
-import 'dart:convert' show jsonDecode, utf8;
-import 'dart:io' show Platform, File;
+import 'dart:convert' show utf8;
+import 'dart:io' show Platform;
 import 'dart:typed_data' show Uint8List;
 
 import 'package:PiliPlus/common/constants.dart';
@@ -713,10 +713,23 @@ class HeaderControlState extends State<HeaderControl>
                         type: .custom,
                         allowedExtensions: const [
                           'json',
+                          'bcc',
                           'vtt',
                           'srt',
                           'ass',
-                          'bcc',
+                          'ssa',
+                          'sub',
+                          'idx',
+                          'sup',
+                          'lrc',
+                          'mpl',
+                          'mpl2',
+                          'smi',
+                          'sami',
+                          'ttml',
+                          'jss',
+                          'scc',
+                          'txt',
                         ],
                       );
                       if (result != null) {
@@ -724,21 +737,17 @@ class HeaderControlState extends State<HeaderControl>
                         final path = file.path;
                         final name = file.name;
                         final length = videoDetailCtr.subtitles.length;
-                        if (name.endsWith('.json') || name.endsWith('.bcc')) {
-                          final file = File(path);
-                          final stream = file.openRead().transform(
-                            utf8.decoder,
-                          );
-                          final buffer = StringBuffer();
-                          await for (final chunk in stream) {
-                            if (!mounted) return;
-                            buffer.write(chunk);
-                          }
+                        final extension = name.split('.').last.toLowerCase();
+                        if (extension == 'json' || extension == 'bcc') {
+                          final bytes = await file.readAsBytes();
                           if (!mounted) return;
-                          String sub = buffer.toString();
-                          sub = await compute<List, String>(
-                            SubtitleUtils.json2Vtt,
-                            jsonDecode(sub)['body'],
+                          final content = utf8.decode(
+                            bytes,
+                            allowMalformed: true,
+                          );
+                          final sub = await compute<String, String>(
+                            SubtitleUtils.jsonSubtitle2Vtt,
+                            content,
                           );
                           if (!mounted) return;
                           videoDetailCtr.vttSubtitles[length] = (

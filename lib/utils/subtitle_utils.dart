@@ -1,3 +1,5 @@
+import 'dart:convert' show jsonDecode;
+
 import 'package:PiliPlus/models/common/enum_with_label.dart';
 import 'package:collection/collection.dart' show IterableExtension;
 
@@ -129,6 +131,90 @@ abstract final class SubtitleUtils {
         '\n\n',
       );
     return sb.toString();
+  }
+
+  static String jsonSubtitle2Vtt(String value) {
+    final source = value.startsWith('\uFEFF') ? value.substring(1) : value;
+    final decoded = jsonDecode(source);
+    final cues = _jsonCueList(decoded);
+    if (cues.isEmpty) return 'WEBVTT\n\n';
+
+    final output = StringBuffer('WEBVTT\n\n');
+    var count = 0;
+    for (final cue in cues) {
+      if (cue is! Map) continue;
+      final start = _jsonTimecode(
+        cue['from'] ?? cue['start'] ?? cue['start_time'] ?? cue['begin'],
+      );
+      final end = _jsonTimecode(
+        cue['to'] ?? cue['end'] ?? cue['end_time'],
+      );
+      final text = cue['content'] ?? cue['text'] ?? cue['value'];
+      if (start == null || end == null || text == null) continue;
+      if (count++ > 0) output.write('\n');
+      output
+        ..write(start)
+        ..write(' --> ')
+        ..write(end)
+        ..write('\n')
+        ..write(_plainAssText(text.toString()))
+        ..write('\n');
+    }
+    if (count == 0) throw const FormatException('JSON 中没有可用的字幕条目');
+    return output.toString();
+  }
+
+  static List<dynamic> _jsonCueList(Object? value) {
+    if (value is List) return value;
+    if (value is Map) {
+      for (final key in const [
+        'body',
+        'data',
+        'subtitles',
+        'cues',
+        'items',
+        'result',
+      ]) {
+        final nested = value[key];
+        if (nested is List) return nested;
+        if (nested is Map) {
+          try {
+            return _jsonCueList(nested);
+          } on FormatException {
+            // Try the remaining known wrapper keys.
+          }
+        }
+      }
+      if (value.containsKey('from') ||
+          value.containsKey('start') ||
+          value.containsKey('start_time')) {
+        return [value];
+      }
+    }
+    throw const FormatException('不支持的 JSON 字幕结构');
+  }
+
+  static String? _jsonTimecode(Object? value) {
+    if (value is num) {
+      if (value < 0) return null;
+      return _vttTimecode(value);
+    }
+    if (value is! String) return null;
+    final raw = value.trim().replaceAll(',', '.');
+    final seconds = num.tryParse(raw);
+    if (seconds != null) {
+      if (seconds < 0) return null;
+      return _vttTimecode(seconds);
+    }
+    final match = RegExp(
+      r'^(?:(\d+):)?([0-5]?\d):([0-5]?\d)(?:\.(\d{1,3}))?$',
+    ).firstMatch(raw);
+    if (match == null) return null;
+    final hours = int.tryParse(match[1] ?? '0') ?? 0;
+    final minutes = int.parse(match[2]!);
+    final secs = int.parse(match[3]!);
+    final millis = (match[4] ?? '').padRight(3, '0');
+    return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}.$millis';
   }
 
   static String _srtTimecode(num seconds) {
