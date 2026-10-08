@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert' show utf8;
 import 'dart:io' show File;
 import 'dart:math' show min;
 import 'dart:ui';
@@ -75,7 +76,8 @@ import 'package:collection/collection.dart';
 import 'package:dio/dio.dart' show Options;
 import 'package:extended_nested_scroll_view/extended_nested_scroll_view.dart'
     show ExtendedNestedScrollViewState;
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show compute, kDebugMode;
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:flutter_volume_controller/flutter_volume_controller.dart';
 import 'package:get/get.dart';
@@ -1129,6 +1131,63 @@ class VideoDetailController extends GetxController
       }
     }
     await setSub(subtitle);
+  }
+
+  Future<void> addExternalSubtitle() async {
+    try {
+      final result = await FilePicker.pickFile(
+        type: .custom,
+        allowedExtensions: const [
+          'json',
+          'bcc',
+          'vtt',
+          'srt',
+          'ass',
+          'ssa',
+          'sub',
+          'idx',
+          'sup',
+          'lrc',
+          'mpl',
+          'mpl2',
+          'smi',
+          'sami',
+          'ttml',
+          'jss',
+          'scc',
+          'txt',
+        ],
+      );
+      if (result == null || isClosed) return;
+
+      final file = result.xFile;
+      final fileName = file.name;
+      final index = subtitles.length;
+      final extension = fileName.split('.').last.toLowerCase();
+      if (extension == 'json' || extension == 'bcc') {
+        final bytes = await file.readAsBytes();
+        if (isClosed) return;
+        final content = utf8.decode(bytes, allowMalformed: true);
+        final subtitle = await compute<String, String>(
+          SubtitleUtils.jsonSubtitle2Vtt,
+          content,
+        );
+        if (isClosed) return;
+        vttSubtitles[index] = (isData: true, id: subtitle);
+      } else {
+        vttSubtitles[index] = (isData: false, id: file.path);
+      }
+
+      subtitles.add(
+        Subtitle(
+          lan: '',
+          lanDoc: fileName.split('.').firstOrNull ?? fileName,
+        ),
+      );
+      await setSubtitle(index + 1);
+    } catch (error) {
+      SmartDialog.showToast('加载字幕失败：$error');
+    }
   }
 
   // interactive video
