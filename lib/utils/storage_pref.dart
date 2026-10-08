@@ -447,6 +447,9 @@ abstract final class Pref {
   static bool get autoUpdate =>
       _setting.get(SettingBoxKey.autoUpdate, defaultValue: true);
 
+  static bool get disableUpdateCheck =>
+      _setting.get(SettingBoxKey.disableUpdateCheck, defaultValue: false);
+
   static bool get horizontalPreview =>
       _setting.get(SettingBoxKey.horizontalPreview, defaultValue: false);
 

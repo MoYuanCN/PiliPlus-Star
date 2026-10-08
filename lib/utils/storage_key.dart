@@ -12,6 +12,7 @@ abstract final class SettingBoxKey {
       preferCodecsCellular = 'preferCodecsCellular',
       defaultToastOp = 'defaultToastOp',
       defaultPicQa = 'defaultPicQa',
+      disableUpdateCheck = 'disableUpdateCheck',
       enableHA = 'enableHA',
       enableBangumiResolver = 'enableBangumiResolver',
       bangumiResolverDefaultRegion = 'bangumiResolverDefaultRegion',

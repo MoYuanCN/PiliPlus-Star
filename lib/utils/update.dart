@@ -9,6 +9,7 @@ import 'package:PiliPlus/utils/accounts/account.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
+import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
@@ -18,6 +19,10 @@ import 'package:material_ui/material_ui.dart';
 abstract final class Update {
   // 检查更新
   static Future<void> checkUpdate([bool isAuto = true]) async {
+    if (Pref.disableUpdateCheck) {
+      if (!isAuto) SmartDialog.showToast('更新检查已屏蔽');
+      return;
+    }
     if (kDebugMode) return;
     SmartDialog.dismiss();
     try {

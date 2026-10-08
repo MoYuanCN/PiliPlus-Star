@@ -640,6 +640,13 @@ List<SettingsModel> get extraSettings => [
       }
     },
   ),
+  const SwitchModel(
+    title: '屏蔽更新检查',
+    subtitle: '开启后屏蔽启动和手动更新检查',
+    leading: Icon(Icons.system_update_alt_outlined),
+    setKey: SettingBoxKey.disableUpdateCheck,
+    defaultVal: false,
+  ),
 ];
 
 Future<void> audioNormalization(
