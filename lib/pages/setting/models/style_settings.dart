@@ -85,8 +85,8 @@ List<SettingsModel> get styleSettings => [
     needReboot: true,
   ),
   NormalModel(
-    title: 'App字体设置',
-    subtitle: '点击设置',
+    title: '应用界面字体',
+    subtitle: '只影响应用界面，不影响字幕',
     leading: const Icon(Icons.text_fields),
     onTap: (context, setState) => Get.toNamed('/fontSetting'),
   ),

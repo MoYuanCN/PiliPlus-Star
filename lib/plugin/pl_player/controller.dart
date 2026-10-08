@@ -423,6 +423,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
   final bool showVipDanmaku = Pref.showVipDanmaku; // loop unswitching
   late double subtitleStrokeWidth = Pref.subtitleStrokeWidth;
   late int subtitleFontWeight = Pref.subtitleFontWeight;
+  late String subtitleFontFamily = Pref.subtitleFontFamily;
 
   // settings
   late final showFSActionItem = Pref.showFSActionItem;
@@ -480,6 +481,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     height: 1.5,
     fontSize:
         16 * (isFullScreen.value ? subtitleFontScaleFS : subtitleFontScale),
+    fontFamily: subtitleFontFamily,
     letterSpacing: 0.1,
     wordSpacing: 0.1,
     color: Colors.white,
@@ -831,6 +833,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
       'video-sync': Pref.videoSync,
       // Keep ASS script styles, positioning, and animations under libass.
       'sub-ass-override': 'no',
+      'sub-font': subtitleFontFamily,
       'sub-fonts-dir': subtitleFontDirectory.path,
       if (Platform.isAndroid) 'ao': Pref.audioOutput,
       'volume':
@@ -860,6 +863,14 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
       ),
     );
 
+    if (Platform.isAndroid) {
+      // media_kit disables the Android font provider during video controller
+      // setup; re-enable Fontconfig so libass can search installed fonts.
+      try {
+        await player.command(['set', 'sub-font-provider', 'fontconfig']);
+      } catch (_) {}
+    }
+
     player.setMediaHeader(userAgent: BrowserUa.pc, referer: HttpString.baseUrl);
 
     _startListeners(player);
@@ -873,7 +884,16 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     final directory = await SubtitleFontUtils.ensureDirectory();
     try {
       await player.command(['set', 'sub-fonts-dir', directory.path]);
+      await player.command(['set', 'sub-font', subtitleFontFamily]);
       await player.command(['sub-reload']);
+    } catch (_) {}
+  }
+
+  Future<void> setSubtitleFontFamily(String family) async {
+    subtitleFontFamily = family;
+    updateSubtitleStyle();
+    try {
+      await _videoPlayerController?.command(['set', 'sub-font', family]);
     } catch (_) {}
   }
 
@@ -1625,6 +1645,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
       SettingBoxKey.subtitleBgOpacity: subtitleBgOpacity,
       SettingBoxKey.subtitleStrokeWidth: subtitleStrokeWidth,
       SettingBoxKey.subtitleFontWeight: subtitleFontWeight,
+      SettingBoxKey.subtitleFontFamily: subtitleFontFamily,
     });
   }
 

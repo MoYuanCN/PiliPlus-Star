@@ -435,6 +435,11 @@ abstract final class Pref {
   static int get subtitleFontWeight =>
       _setting.get(SettingBoxKey.subtitleFontWeight, defaultValue: 5);
 
+  static String get subtitleFontFamily => _setting.get(
+    SettingBoxKey.subtitleFontFamily,
+    defaultValue: 'Dream Han Sans SC',
+  );
+
   static bool get badCertificateCallback =>
       _setting.get(SettingBoxKey.badCertificateCallback, defaultValue: false);
 

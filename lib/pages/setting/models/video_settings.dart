@@ -36,17 +36,6 @@ const _resolverModeChoices = <(_ResolverModeOption, String)>[
   (_ResolverModeOption.custom, '自定义'),
 ];
 
-const _resolverModeDescriptions = <String>[
-  '中国大陆普通 HTTP 搜索',
-  '香港普通 HTTP 搜索',
-  '澳门普通 HTTP 搜索',
-  '台湾普通 HTTP 搜索',
-  'Intl APP gRPC 搜索；东南亚设置会规范为 INTL',
-  'Intl APP gRPC 搜索；东南亚默认值',
-  'Intl APP gRPC 搜索',
-  '按解析服务器要求填写自定义值',
-];
-
 _ResolverModeOption _resolverModeOption(String value) =>
     switch (value.toUpperCase()) {
       'CN' => _ResolverModeOption.cn,
@@ -118,8 +107,8 @@ List<SettingsModel> get videoSettings => [
     onTap: _showCDNDialog,
   ),
   NormalModel(
-    title: 'ASS 字幕字体',
-    subtitle: '导入字幕字体，libass 同时搜索系统字体',
+    title: '字幕字体',
+    subtitle: '设置字幕默认字体并管理字体文件；不影响应用界面字体',
     leading: const Icon(Icons.font_download_outlined),
     onTap: (context, setState) => Get.toNamed('/subtitleFontSetting'),
   ),
@@ -289,20 +278,27 @@ Future<void> _showBangumiDefaultRegion(BuildContext context) async {
     builder: (context) => SimpleDialog(
       title: const Text('默认解析地区'),
       children: [
-        for (final value in [
-          '',
-          ...BangumiRegion.values.map((region) => region.mode),
-        ])
-          RadioListTile<String>(
-            value: value,
-            groupValue: BangumiRegion.defaultRegion?.mode ?? '',
-            title: Text(
-              value.isEmpty
-                  ? '未指定，按列表顺序尝试'
-                  : BangumiRegion.byMode(value)!.label,
-            ),
-            onChanged: (value) => Get.back(result: value),
+        RadioGroup<String>(
+          groupValue: BangumiRegion.defaultRegion?.mode ?? '',
+          onChanged: (value) => Get.back(result: value),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final value in [
+                '',
+                ...BangumiRegion.values.map((region) => region.mode),
+              ])
+                RadioListTile<String>(
+                  value: value,
+                  title: Text(
+                    value.isEmpty
+                        ? '未指定，按列表顺序尝试'
+                        : BangumiRegion.byMode(value)!.label,
+                  ),
+                ),
+            ],
           ),
+        ),
       ],
     ),
   );
@@ -368,89 +364,92 @@ Future<void> _editResolverMode(
   BangumiRegion region,
 ) async {
   final currentMode = region.resolverMode;
-  final currentOption = _resolverModeOption(currentMode);
-  final result = await showDialog<_ResolverModeOption>(
+  var selectedOption = _resolverModeOption(currentMode);
+  var customMode = selectedOption == _ResolverModeOption.custom
+      ? currentMode
+      : '';
+  final result = await showDialog<(_ResolverModeOption, String?)>(
     context: context,
-    builder: (context) => SelectDialog<_ResolverModeOption>(
-      value: currentOption,
-      title: '${region.label} resolver_mode（不清楚时保持默认）',
-      values: _resolverModeChoices,
-      subtitleBuilder: (context, index) => Text(
-        _resolverModeDescriptions[index],
+    builder: (context) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        title: Text('${region.label} resolver_mode（不清楚时保持默认）'),
+        content: SizedBox(
+          width: 400,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 480),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RadioGroup<_ResolverModeOption>(
+                    groupValue: selectedOption,
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setDialogState(() => selectedOption = value);
+                    },
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final (option, label) in _resolverModeChoices)
+                          RadioListTile<_ResolverModeOption>(
+                            value: option,
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(label),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (selectedOption == _ResolverModeOption.custom) ...[
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      autofocus: true,
+                      initialValue: customMode,
+                      maxLength: 64,
+                      onChanged: (value) => customMode = value.trim(),
+                      decoration: const InputDecoration(
+                        labelText: '自定义值',
+                        hintText: '输入解析服务器要求的值',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              if (selectedOption == _ResolverModeOption.custom &&
+                  customMode.trim().isEmpty) {
+                SmartDialog.showToast('请输入自定义 resolver_mode');
+                return;
+              }
+              Navigator.of(context).pop((selectedOption, customMode.trim()));
+            },
+            child: const Text('保存'),
+          ),
+        ],
       ),
     ),
   );
   if (result == null) return;
 
-  if (result == _ResolverModeOption.custom) {
-    final initialValue = currentOption == _ResolverModeOption.custom
-        ? currentMode
-        : '';
-    final customMode = await _editCustomResolverMode(
-      context,
-      region,
-      initialValue,
-    );
-    if (customMode == null) return;
-    await GStorage.setting.put(region.resolverModeKey, customMode);
+  final (option, value) = result;
+  if (option == _ResolverModeOption.custom) {
+    await GStorage.setting.put(region.resolverModeKey, value);
     return;
   }
 
   await GStorage.setting.put(
     region.resolverModeKey,
-    _resolverModeValue(result),
-  );
-}
-
-Future<String?> _editCustomResolverMode(
-  BuildContext context,
-  BangumiRegion region,
-  String initialValue,
-) async {
-  var value = initialValue;
-  return showDialog<String>(
-    context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: Text('${region.label}自定义 resolver_mode'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '自定义值会随番剧搜索发送给解析服务器。东南亚的 TH 会按兼容规则规范为 INTL。不清楚时请使用默认值 ${region.mode}。',
-          ),
-          const SizedBox(height: 12),
-          TextFormField(
-            initialValue: initialValue,
-            autofocus: true,
-            maxLength: 64,
-            keyboardType: TextInputType.text,
-            onChanged: (text) => value = text.trim(),
-            decoration: const InputDecoration(
-              hintText: '输入解析服务器要求的值',
-              border: OutlineInputBorder(),
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(dialogContext).pop(),
-          child: const Text('取消'),
-        ),
-        TextButton(
-          onPressed: () {
-            final result = value.trim();
-            if (result.isEmpty) {
-              SmartDialog.showToast('请输入自定义 resolver_mode');
-              return;
-            }
-            Navigator.of(dialogContext).pop(result);
-          },
-          child: const Text('保存'),
-        ),
-      ],
-    ),
+    _resolverModeValue(option),
   );
 }
 
