@@ -1,6 +1,5 @@
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/badge.dart';
-import 'package:PiliPlus/common/widgets/image/image_save.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/models/search/result.dart';
 import 'package:PiliPlus/utils/app_scheme.dart';
@@ -14,6 +13,11 @@ class SearchPgcItem extends StatelessWidget {
 
   final SearchPgcItemModel item;
   final bool compact;
+
+  void onLongPress() => showPgcCover(
+    title: item.title.map((item) => item.text).join(),
+    cover: item.cover,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -78,10 +82,6 @@ class SearchPgcItem extends StatelessWidget {
       );
     }
 
-    void onLongPress() => imageSaveDialog(
-      title: item.title.map((item) => item.text).join(),
-      cover: item.cover,
-    );
     return Material(
       type: MaterialType.transparency,
       child: InkWell(

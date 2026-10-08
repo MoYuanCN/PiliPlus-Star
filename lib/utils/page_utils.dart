@@ -217,7 +217,11 @@ abstract final class PageUtils {
       if (item.basic?.commentType == 12) {
         toDupNamed(
           '/articlePage',
-          parameters: {'id': item.idStr, 'type': 'opus'},
+          parameters: {
+            'id': item.idStr,
+            'type': 'opus',
+            if (viewComment) 'viewComment': '',
+          },
         );
       } else {
         if (item.linkFolded) {
@@ -289,7 +293,11 @@ abstract final class PageUtils {
       case 'DYNAMIC_TYPE_ARTICLE':
         toDupNamed(
           '/articlePage',
-          parameters: {'id': item.idStr, 'type': 'opus'},
+          parameters: {
+            'id': item.idStr,
+            'type': 'opus',
+            if (viewComment) 'viewComment': '',
+          },
         );
         break;
 

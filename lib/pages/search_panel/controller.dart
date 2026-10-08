@@ -1,4 +1,4 @@
-import 'dart:async' show StreamSubscription;
+import 'dart:async' show StreamSubscription, Timer;
 
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/search.dart';
@@ -136,7 +136,11 @@ class SearchPanelController<R extends SearchNumData<T>, T>
       onSuccess: (String gaiaVtoken) {
         if (requestGeneration != _resolverRequestGeneration) return;
         this.gaiaVtoken = gaiaVtoken;
-        queryData(requestedPage == 1);
+        Timer(const Duration(milliseconds: 200), () {
+          if (!isClosed && requestGeneration == _resolverRequestGeneration) {
+            queryData(requestedPage == 1);
+          }
+        });
       },
     );
     if (requestGeneration != _resolverRequestGeneration) return result;
