@@ -47,18 +47,17 @@ const _resolverModeDescriptions = <String>[
   '按解析服务器要求填写自定义值',
 ];
 
-_ResolverModeOption _resolverModeOption(String value) => switch (
-  value.toUpperCase()
-) {
-  'CN' => _ResolverModeOption.cn,
-  'HK' => _ResolverModeOption.hk,
-  'MO' => _ResolverModeOption.mo,
-  'TW' => _ResolverModeOption.tw,
-  'TH' => _ResolverModeOption.th,
-  'INTL' => _ResolverModeOption.intl,
-  'SEA' => _ResolverModeOption.sea,
-  _ => _ResolverModeOption.custom,
-};
+_ResolverModeOption _resolverModeOption(String value) =>
+    switch (value.toUpperCase()) {
+      'CN' => _ResolverModeOption.cn,
+      'HK' => _ResolverModeOption.hk,
+      'MO' => _ResolverModeOption.mo,
+      'TW' => _ResolverModeOption.tw,
+      'TH' => _ResolverModeOption.th,
+      'INTL' => _ResolverModeOption.intl,
+      'SEA' => _ResolverModeOption.sea,
+      _ => _ResolverModeOption.custom,
+    };
 
 String _resolverModeValue(_ResolverModeOption option) => switch (option) {
   _ResolverModeOption.cn => 'CN',
@@ -117,6 +116,12 @@ List<SettingsModel> get videoSettings => [
     getSubtitle: () =>
         '当前使用：${VideoUtils.cdnService.desc}，部分 CDN 可能失效，如无法播放请尝试切换',
     onTap: _showCDNDialog,
+  ),
+  NormalModel(
+    title: 'ASS 字幕字体',
+    subtitle: '导入字幕字体，libass 同时搜索系统字体',
+    leading: const Icon(Icons.font_download_outlined),
+    onTap: (context, setState) => Get.toNamed('/subtitleFontSetting'),
   ),
   const SwitchModel(
     title: '自定义番剧解析服务器',

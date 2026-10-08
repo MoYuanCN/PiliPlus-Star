@@ -48,6 +48,7 @@ import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
+import 'package:PiliPlus/utils/subtitle_font_utils.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:archive/archive.dart' show getCrc32;
 import 'package:canvas_danmaku/canvas_danmaku.dart';
@@ -825,10 +826,12 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
 
   Future<Player> _initPlayer() async {
     assert(_videoPlayerController == null);
+    final subtitleFontDirectory = await SubtitleFontUtils.ensureDirectory();
     final opt = {
       'video-sync': Pref.videoSync,
       // Keep ASS script styles, positioning, and animations under libass.
       'sub-ass-override': 'no',
+      'sub-fonts-dir': subtitleFontDirectory.path,
       if (Platform.isAndroid) 'ao': Pref.audioOutput,
       'volume':
           (PlatformUtils.isMobile ? Pref.playerVolume : volume.value * 100)
@@ -862,6 +865,16 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     _startListeners(player);
 
     return player;
+  }
+
+  Future<void> reloadSubtitleFonts() async {
+    final player = _videoPlayerController;
+    if (player == null) return;
+    final directory = await SubtitleFontUtils.ensureDirectory();
+    try {
+      await player.command(['set', 'sub-fonts-dir', directory.path]);
+      await player.command(['sub-reload']);
+    } catch (_) {}
   }
 
   late final buffer = Pref.initBuffer(_playbackSpeed.value);
