@@ -241,6 +241,8 @@ abstract final class VideoHttp {
       'fnval': 4048,
       'fourk': 1,
       'fnver': 0,
+      // Keep PGC playback links on HTTPS, as in the regional resolver flow.
+      if (videoType == .pgc) 'force_host': 2,
       'voice_balance': voiceBalance ? 1 : 0,
       'gaia_source': 'pre-load',
       'isGaiaAvoided': true,
@@ -254,14 +256,16 @@ abstract final class VideoHttp {
       'cur_language': ?language,
     });
 
+    final preferredRegion = BangumiRegion.byMode(resolverRegionCode);
     final triedRegionalResolversEarly =
         videoType == .pgc &&
-        resolverRegionCode != null &&
-        BangumiRegion.enabled;
+        preferredRegion != null &&
+        BangumiRegion.configured.contains(preferredRegion);
     if (triedRegionalResolversEarly) {
       final resolved = await _regionalPlayUrl(
         params,
         path: videoType.api,
+        resolverRegionCode: resolverRegionCode,
       );
       if (resolved != null) return Success(resolved);
     }
@@ -293,6 +297,7 @@ abstract final class VideoHttp {
           final resolved = await _regionalPlayUrl(
             params,
             path: videoType.api,
+            resolverRegionCode: resolverRegionCode,
           );
           if (resolved != null) return Success(resolved);
         }
@@ -314,6 +319,7 @@ abstract final class VideoHttp {
         final resolved = await _regionalPlayUrl(
           params,
           path: videoType.api,
+          resolverRegionCode: resolverRegionCode,
         );
         if (resolved != null) return Success(resolved);
       }
@@ -323,6 +329,7 @@ abstract final class VideoHttp {
         final resolved = await _regionalPlayUrl(
           params,
           path: videoType.api,
+          resolverRegionCode: resolverRegionCode,
         );
         if (resolved != null) return Success(resolved);
       }
@@ -382,9 +389,20 @@ abstract final class VideoHttp {
   }
 
   static bool hasPlayableStream(PlayUrlModel model) =>
-      model.dash?.video?.any((item) => item.baseUrl?.isNotEmpty == true) ==
+      model.dash?.video?.any(
+            (item) => item.playUrls.any(_isPlayableUrl),
+          ) ==
           true ||
-      model.durl?.any((item) => item.url?.isNotEmpty == true) == true;
+      model.durl?.any((item) => item.playUrls.any(_isPlayableUrl)) == true;
+
+  static bool _isPlayableUrl(String? value) {
+    if (value == null || value.trim().isEmpty) return false;
+    final candidate = value.startsWith('//') ? 'https:$value' : value;
+    final uri = Uri.tryParse(candidate);
+    return uri != null &&
+        const {'http', 'https'}.contains(uri.scheme.toLowerCase()) &&
+        uri.host.isNotEmpty;
+  }
 
   static String _parseVideoErr(int? code, String? msg) {
     return switch (code) {

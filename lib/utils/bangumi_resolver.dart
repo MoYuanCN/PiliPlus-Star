@@ -109,11 +109,11 @@ enum BangumiRegion {
 
   static List<BangumiRegion> candidates(String? preferredMode) {
     final available = configured;
+    if (preferredMode == null) return available;
     final preferred = byMode(preferredMode);
-    return [
-      if (preferred != null && available.contains(preferred)) preferred,
-      ...available.where((region) => region != preferred),
-    ];
+    return preferred != null && available.contains(preferred)
+        ? [preferred]
+        : const [];
   }
 
   static String normalizeResolverAddress(String address) {
