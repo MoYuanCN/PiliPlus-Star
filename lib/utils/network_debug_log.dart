@@ -261,7 +261,7 @@ abstract final class NetworkDebugLog {
     return value
         .replaceAllMapped(
           RegExp(
-            r'(access_key|accesskey|sessdata|bili_jct|csrf|refresh_token|access_token|authorization|cookie|sign|w_rid|buvid3?|device_id|auth_key|token|deadline|expires|wsSecret|wsTime|hdnts|mid)=([^&\s,]+)',
+            r'(access_key|accesskey|sessdata|bili_jct|csrf|refresh_token|access_token|authorization|cookie|sign|signature|sig|upsig|w_rid|buvid3?|device_id|devicebin|fingerprint|auth_key|token|trid|sid|auroraeid|e|deadline|expires|wsSecret|wsTime|hdnts|mid)=([^&\s,]+)',
             caseSensitive: false,
           ),
           (match) => '${match[1]}=[redacted]',
@@ -291,6 +291,15 @@ abstract final class NetworkDebugLog {
       'deviceid',
       'authkey',
       'token',
+      'e',
+      'sig',
+      'signature',
+      'upsig',
+      'trid',
+      'sid',
+      'auroraeid',
+      'devicebin',
+      'fingerprint',
       'deadline',
       'expires',
       'wssecret',
@@ -319,8 +328,7 @@ abstract final class NetworkDebugLog {
     if (key.toLowerCase() != 'cookie' && key.toLowerCase() != 'set-cookie') {
       return '[redacted]';
     }
-    return value
-        .toString()
+    String redactCookie(String cookie) => cookie
         .split(';')
         .map((part) {
           final separator = part.indexOf('=');
@@ -329,6 +337,10 @@ abstract final class NetworkDebugLog {
           return '$name=[redacted]';
         })
         .join('; ');
+    if (value is Iterable) {
+      return value.map((item) => redactCookie(item.toString())).toList();
+    }
+    return redactCookie(value.toString());
   }
 
   static String _limit(String text) {
