@@ -43,6 +43,7 @@ import 'package:PiliPlus/utils/feed_back.dart';
 import 'package:PiliPlus/utils/image_utils.dart';
 import 'package:PiliPlus/utils/ios/pip_helper.dart';
 import 'package:PiliPlus/utils/mpv_config.dart';
+import 'package:PiliPlus/utils/network_debug_log.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/path_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
@@ -1159,18 +1160,29 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
           _updatePlaybackState();
         }
       }),
-      if (kDebugMode)
-        stream.log.listen(((PlayerLog log) {
-          if (log.level == 'error' || log.level == 'fatal') {
+      stream.log.listen((PlayerLog log) {
+        if (log.level == 'error' || log.level == 'fatal') {
+          NetworkDebugLog.appendPlayerEvent(
+            level: log.level,
+            prefix: log.prefix,
+            message: log.text,
+          );
+          if (kDebugMode) {
             Utils.reportError(
               '${log.level}: ${log.prefix}: ${log.text}\n${player.state.playlist}',
               null,
             );
-          } else {
-            debugPrint(log.toString());
           }
-        })),
+        } else if (kDebugMode) {
+          debugPrint(log.toString());
+        }
+      }),
       stream.error.listen((String event) {
+        NetworkDebugLog.appendPlayerEvent(
+          level: 'error',
+          prefix: 'stream.error',
+          message: event,
+        );
         if (dataSource is FileSource &&
             event.startsWith("Failed to open file")) {
           return;

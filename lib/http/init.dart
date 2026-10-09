@@ -12,6 +12,7 @@ import 'package:PiliPlus/utils/accounts/account.dart';
 import 'package:PiliPlus/utils/accounts/account_manager/account_mgr.dart';
 import 'package:PiliPlus/utils/global_data.dart';
 import 'package:PiliPlus/utils/login_utils.dart';
+import 'package:PiliPlus/utils/network_debug_log.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:archive/archive.dart';
@@ -39,6 +40,7 @@ class Request {
   static void setCookie() {
     accountManager = AccountManager();
     dio.interceptors.add(accountManager);
+    dio.interceptors.add(NetworkDebugInterceptor());
     Accounts.refresh();
     LoginUtils.setWebCookie();
 
