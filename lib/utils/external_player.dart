@@ -163,7 +163,8 @@ abstract final class ExternalPlayer {
   static List<String> _fromPath(String executableName) {
     final result = <String>[];
     final searchPath = Platform.environment['PATH'] ?? '';
-    for (final directory in searchPath.split(Platform.pathSeparator)) {
+    final pathListSeparator = Platform.isWindows ? ';' : ':';
+    for (final directory in searchPath.split(pathListSeparator)) {
       if (directory.trim().isEmpty) continue;
       result.add(path.join(directory.trim(), executableName));
     }
