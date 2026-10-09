@@ -394,6 +394,12 @@ class MyApp extends StatelessWidget {
     GStorage.setting.put(SettingBoxKey.dynamicColor, false);
     return false;
   }
+
+  static Future<bool> refreshPlatformColors() {
+    _light = null;
+    _dark = null;
+    return initPlatformState();
+  }
 }
 
 class _CustomHttpOverrides extends HttpOverrides {

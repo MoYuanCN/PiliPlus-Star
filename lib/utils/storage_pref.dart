@@ -219,6 +219,18 @@ abstract final class Pref {
         defaultValue: SubtitlePrefType.off.index,
       )];
 
+  static List<String> get subtitleLanguagePreferences {
+    final value = _setting.get(SettingBoxKey.subtitleLanguagePreferences);
+    if (value is List) return value.whereType<String>().toList();
+    return const ['zh-CN', 'zh-Hans', 'zh-TW', 'zh-Hant', 'zh'];
+  }
+
+  static List<String> get subtitleCustomLanguageTags {
+    final value = _setting.get(SettingBoxKey.subtitleCustomLanguageTags);
+    if (value is List) return value.whereType<String>().toList();
+    return const [];
+  }
+
   static bool get useRelativeSlide =>
       _setting.get(SettingBoxKey.useRelativeSlide, defaultValue: false);
 
@@ -414,6 +426,9 @@ abstract final class Pref {
   static double get danmakuLineHeight =>
       _setting.get(SettingBoxKey.danmakuLineHeight, defaultValue: 1.6);
 
+  static String get danmakuFontFamily =>
+      _setting.get(SettingBoxKey.danmakuFontFamily, defaultValue: '');
+
   static bool get showArgueMsg =>
       _setting.get(SettingBoxKey.showArgueMsg, defaultValue: true);
 
@@ -439,6 +454,79 @@ abstract final class Pref {
     SettingBoxKey.subtitleFontFamily,
     defaultValue: 'Dream Han Sans SC',
   );
+
+  static Map<String, String> get subtitleFontLanguageMap {
+    final value = _setting.get(SettingBoxKey.subtitleFontLanguageMap);
+    if (value is! Map) return const {};
+    return {
+      for (final entry in value.entries)
+        if (entry.key is String && entry.value is String)
+          entry.key as String: entry.value as String,
+    };
+  }
+
+  static bool get developerModeEnabled =>
+      _setting.get(SettingBoxKey.developerModeEnabled, defaultValue: false);
+
+  static String get mpvVideoOutput =>
+      _setting.get(SettingBoxKey.mpvVideoOutput, defaultValue: 'auto');
+
+  static String get mpvAudioLanguage =>
+      _setting.get(SettingBoxKey.mpvAudioLanguage, defaultValue: 'ja,zh,en');
+
+  static String get mpvSubtitleLanguage =>
+      _setting.get(SettingBoxKey.mpvSubtitleLanguage, defaultValue: 'zh,zh-CN');
+
+  static bool get mpvCacheEnabled =>
+      _setting.get(SettingBoxKey.mpvCacheEnabled, defaultValue: true);
+
+  static bool get mpvSubtitleAutoLoad =>
+      _setting.get(SettingBoxKey.mpvSubtitleAutoLoad, defaultValue: true);
+
+  static bool get mpvStartFullscreen =>
+      _setting.get(SettingBoxKey.mpvStartFullscreen, defaultValue: false);
+
+  static String get mpvLogLevel =>
+      _setting.get(SettingBoxKey.mpvLogLevel, defaultValue: 'warn');
+
+  static String get externalPlayerType =>
+      _setting.get(SettingBoxKey.externalPlayerType, defaultValue: 'mpv');
+
+  static String get externalPlayerPath =>
+      _setting.get(SettingBoxKey.externalPlayerPath, defaultValue: '');
+
+  static String get externalPlayerArguments => _setting.get(
+    SettingBoxKey.externalPlayerArguments,
+    defaultValue: '',
+  );
+
+  static String get externalPlayerMpvPath => _setting.get(
+    SettingBoxKey.externalPlayerMpvPath,
+    defaultValue: externalPlayerType == 'mpv' ? externalPlayerPath : '',
+  );
+
+  static String get externalPlayerMpvArguments => _setting.get(
+    SettingBoxKey.externalPlayerMpvArguments,
+    defaultValue: externalPlayerType == 'mpv' ? externalPlayerArguments : '',
+  );
+
+  static String get externalPlayerPotPlayerPath => _setting.get(
+    SettingBoxKey.externalPlayerPotPlayerPath,
+    defaultValue: externalPlayerType == 'potplayer' ? externalPlayerPath : '',
+  );
+
+  static String get externalPlayerPotPlayerArguments => _setting.get(
+    SettingBoxKey.externalPlayerPotPlayerArguments,
+    defaultValue: externalPlayerType == 'potplayer'
+        ? externalPlayerArguments
+        : '',
+  );
+
+  static bool get mpvInterpolation =>
+      _setting.get(SettingBoxKey.mpvInterpolation, defaultValue: false);
+
+  static bool get mpvDeband =>
+      _setting.get(SettingBoxKey.mpvDeband, defaultValue: false);
 
   static bool get badCertificateCallback =>
       _setting.get(SettingBoxKey.badCertificateCallback, defaultValue: false);
@@ -738,6 +826,12 @@ abstract final class Pref {
 
   static int get customColor =>
       _setting.get(SettingBoxKey.customColor, defaultValue: 0);
+
+  static List<int> get customThemeColors {
+    final value = _setting.get(SettingBoxKey.customThemeColors);
+    if (value is! List) return const [];
+    return value.whereType<num>().map((color) => color.toInt()).toList();
+  }
 
   static bool get dynamicColor =>
       !Platform.isIOS &&

@@ -254,14 +254,16 @@ abstract final class VideoHttp {
       'cur_language': ?language,
     });
 
-    final triedRegionalResolversEarly =
+    final preferredRegion = BangumiRegion.byMode(resolverRegionCode);
+    final triedPreferredResolverEarly =
         videoType == .pgc &&
-        resolverRegionCode != null &&
-        BangumiRegion.enabled;
-    if (triedRegionalResolversEarly) {
+        preferredRegion != null &&
+        BangumiRegion.configured.contains(preferredRegion);
+    if (triedPreferredResolverEarly) {
       final resolved = await _regionalPlayUrl(
         params,
         path: videoType.api,
+        resolverRegionCode: resolverRegionCode,
       );
       if (resolved != null) return Success(resolved);
     }
@@ -289,7 +291,8 @@ abstract final class VideoHttp {
         }
         if (videoType == .pgc &&
             !hasPlayableStream(data) &&
-            !triedRegionalResolversEarly) {
+            !triedPreferredResolverEarly &&
+            resolverRegionCode == null) {
           final resolved = await _regionalPlayUrl(
             params,
             path: videoType.api,
@@ -310,7 +313,9 @@ abstract final class VideoHttp {
           resolverRegionCode: resolverRegionCode,
         );
       }
-      if (videoType == .pgc && !triedRegionalResolversEarly) {
+      if (videoType == .pgc &&
+          !triedPreferredResolverEarly &&
+          resolverRegionCode == null) {
         final resolved = await _regionalPlayUrl(
           params,
           path: videoType.api,
@@ -319,7 +324,9 @@ abstract final class VideoHttp {
       }
       return Error(_parseVideoErr(res.data['code'], res.data['message']));
     } catch (e, s) {
-      if (videoType == .pgc && !triedRegionalResolversEarly) {
+      if (videoType == .pgc &&
+          !triedPreferredResolverEarly &&
+          resolverRegionCode == null) {
         final resolved = await _regionalPlayUrl(
           params,
           path: videoType.api,
@@ -333,9 +340,10 @@ abstract final class VideoHttp {
   static Future<PlayUrlModel?> _regionalPlayUrl(
     Map<String, dynamic> params, {
     required String path,
+    String? resolverRegionCode,
   }) async {
     if (!BangumiRegion.enabled) return null;
-    final regions = BangumiRegion.configured;
+    final regions = BangumiRegion.candidates(resolverRegionCode);
     if (regions.isEmpty) return null;
 
     final firstPlayable = Completer<PlayUrlModel?>();
@@ -381,9 +389,20 @@ abstract final class VideoHttp {
   }
 
   static bool hasPlayableStream(PlayUrlModel model) =>
-      model.dash?.video?.any((item) => item.baseUrl?.isNotEmpty == true) ==
+      model.dash?.video?.any(
+            (item) => item.playUrls.any(_isPlayableUrl),
+          ) ==
           true ||
-      model.durl?.any((item) => item.url?.isNotEmpty == true) == true;
+      model.durl?.any((item) => item.playUrls.any(_isPlayableUrl)) == true;
+
+  static bool _isPlayableUrl(String? value) {
+    if (value == null || value.trim().isEmpty) return false;
+    final candidate = value.startsWith('//') ? 'https:$value' : value;
+    final uri = Uri.tryParse(candidate);
+    return uri != null &&
+        const {'http', 'https'}.contains(uri.scheme.toLowerCase()) &&
+        uri.host.isNotEmpty;
+  }
 
   static String _parseVideoErr(int? code, String? msg) {
     return switch (code) {

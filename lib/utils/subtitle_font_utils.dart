@@ -4,6 +4,9 @@ import 'dart:typed_data';
 import 'dart:ui' show loadFontFromList;
 
 import 'package:PiliPlus/utils/path_utils.dart';
+import 'package:PiliPlus/utils/storage.dart';
+import 'package:PiliPlus/utils/storage_key.dart';
+import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path/path.dart' as path;
@@ -39,9 +42,230 @@ abstract final class SubtitleFontUtils {
   static final Map<String, String> _previewFontFamilies = {};
   static final Map<String, ({int size, int modified, List<String> families})>
   _familyCache = {};
+  static String? _activeDirectoryPath;
 
-  static Directory get directory =>
-      Directory(path.join(appSupportDirPath, directoryName));
+  static String get defaultDirectoryPath =>
+      path.join(appSupportDirPath, directoryName);
+
+  static String get directoryPath => GStorage.setting.get(
+    SettingBoxKey.subtitleFontDirectory,
+    defaultValue: defaultDirectoryPath,
+  );
+
+  static Directory get directory => Directory(directoryPath);
+
+  static String get activeDirectoryPath =>
+      _activeDirectoryPath ?? directoryPath;
+
+  static const commonLanguageOptions = <String, String>{
+    'zh-CN': '简体中文 · zh-CN',
+    'zh-TW': '繁體中文 · zh-TW',
+    'zh-HK': '繁體中文（香港）· zh-HK',
+    'zh-Hans': '简体中文 · zh-Hans',
+    'zh-Hant': '繁體中文 · zh-Hant',
+    'en': 'English · en',
+    'en-US': 'English（美国）· en-US',
+    'en-GB': 'English（英国）· en-GB',
+    'ja': '日本語 · ja',
+    'ko': '한국어 · ko',
+    'th': 'ไทย · th',
+    'vi': 'Tiếng Việt · vi',
+    'id': 'Bahasa Indonesia · id',
+    'ms': 'Bahasa Melayu · ms',
+    'fr': 'Français · fr',
+    'de': 'Deutsch · de',
+    'es': 'Español · es',
+    'pt-BR': 'Português（Brasil）· pt-BR',
+    'ru': 'Русский · ru',
+    'ar': 'العربية · ar',
+  };
+
+  static final _alphaPattern = RegExp(r'^[A-Za-z]+$');
+  static final _digitPattern = RegExp(r'^\d+$');
+  static final _alphanumericPattern = RegExp(r'^[A-Za-z0-9]+$');
+
+  /// Validates and canonicalizes a BCP 47 language tag.
+  static String? normalizeLanguageTag(String input) {
+    final parts = input.trim().split('-');
+    if (parts.isEmpty || parts.any((part) => part.isEmpty)) return null;
+
+    bool alpha(String value) => _alphaPattern.hasMatch(value);
+    bool digits(String value) => _digitPattern.hasMatch(value);
+    bool alphanumeric(String value) => _alphanumericPattern.hasMatch(value);
+
+    final normalized = <String>[];
+    var index = 0;
+    final first = parts.first.toLowerCase();
+    if (first == 'x') {
+      if (parts.length < 2 ||
+          parts.skip(1).any((part) => part.length > 8 || !alphanumeric(part))) {
+        return null;
+      }
+      return [
+        'x',
+        ...parts.skip(1).map((part) => part.toLowerCase()),
+      ].join('-');
+    }
+
+    final language = parts[index];
+    if (!alpha(language) ||
+        !((language.length >= 2 && language.length <= 3) ||
+            language.length == 4 ||
+            (language.length >= 5 && language.length <= 8))) {
+      return null;
+    }
+    normalized.add(language.toLowerCase());
+    index++;
+
+    if (language.length <= 3) {
+      var extlangCount = 0;
+      while (index < parts.length &&
+          extlangCount < 3 &&
+          parts[index].length == 3 &&
+          alpha(parts[index])) {
+        normalized.add(parts[index].toLowerCase());
+        index++;
+        extlangCount++;
+      }
+    }
+
+    if (index < parts.length &&
+        parts[index].length == 4 &&
+        alpha(parts[index])) {
+      final script = parts[index].toLowerCase();
+      normalized.add('${script[0].toUpperCase()}${script.substring(1)}');
+      index++;
+    }
+
+    if (index < parts.length &&
+        ((parts[index].length == 2 && alpha(parts[index])) ||
+            (parts[index].length == 3 && digits(parts[index])))) {
+      normalized.add(parts[index].toUpperCase());
+      index++;
+    }
+
+    final variants = <String>{};
+    while (index < parts.length) {
+      final value = parts[index];
+      final isVariant =
+          (value.length >= 5 && value.length <= 8 && alphanumeric(value)) ||
+          (value.length == 4 && digits(value[0]) && alphanumeric(value));
+      if (!isVariant) break;
+      final variant = value.toLowerCase();
+      if (!variants.add(variant)) return null;
+      normalized.add(variant);
+      index++;
+    }
+
+    final extensions = <String>{};
+    while (index < parts.length &&
+        parts[index].length == 1 &&
+        alphanumeric(parts[index]) &&
+        parts[index].toLowerCase() != 'x') {
+      final singleton = parts[index].toLowerCase();
+      if (!extensions.add(singleton)) return null;
+      normalized.add(singleton);
+      index++;
+      final extensionStart = index;
+      while (index < parts.length &&
+          parts[index].length >= 2 &&
+          parts[index].length <= 8 &&
+          alphanumeric(parts[index])) {
+        normalized.add(parts[index].toLowerCase());
+        index++;
+      }
+      if (index == extensionStart) return null;
+    }
+
+    if (index < parts.length && parts[index].toLowerCase() == 'x') {
+      if (index + 1 == parts.length ||
+          parts
+              .skip(index + 1)
+              .any((part) => part.length > 8 || !alphanumeric(part))) {
+        return null;
+      }
+      normalized.addAll(parts.skip(index).map((part) => part.toLowerCase()));
+      index = parts.length;
+    }
+
+    if (index != parts.length) return null;
+    return normalized.join('-');
+  }
+
+  static String? subtitleLanguageTag(String language) {
+    final cleaned = language.trim().replaceFirst(
+      RegExp(r'^ai[-_]', caseSensitive: false),
+      '',
+    );
+    return normalizeLanguageTag(cleaned);
+  }
+
+  static bool matchesLanguagePreference(
+    String subtitleLanguage,
+    String preference,
+  ) {
+    final subtitleTag = subtitleLanguageTag(subtitleLanguage);
+    final preferenceTag = normalizeLanguageTag(preference);
+    if (subtitleTag == null || preferenceTag == null) return false;
+    if (subtitleTag == preferenceTag) return true;
+
+    final preferenceParts = preferenceTag.split('-');
+    if (preferenceParts.length == 1) {
+      return subtitleTag.startsWith('$preferenceTag-');
+    }
+    if (subtitleTag.startsWith('$preferenceTag-')) return true;
+
+    var shortened = preferenceTag;
+    while (shortened.contains('-')) {
+      shortened = shortened.substring(0, shortened.lastIndexOf('-'));
+      if (subtitleTag == shortened) return true;
+    }
+    return false;
+  }
+
+  static String languageLabel(String languageTag) =>
+      commonLanguageOptions[languageTag] ?? '$languageTag（自定义）';
+
+  static String? fontFamilyForLanguage(String language) {
+    final tag = subtitleLanguageTag(language);
+    final mapping = Pref.subtitleFontLanguageMap;
+    if (tag == null) return mapping['other'];
+
+    var candidate = tag;
+    while (true) {
+      final family = mapping[candidate];
+      if (family != null) return family;
+      final separator = candidate.lastIndexOf('-');
+      if (separator < 0) break;
+      candidate = candidate.substring(0, separator);
+    }
+    return mapping['other'];
+  }
+
+  static bool sameDirectory(String first, String second) =>
+      _samePath(first, second);
+
+  static Future<void> setDirectory(String? directoryPath) async {
+    final selectedPath = directoryPath == null || directoryPath.isEmpty
+        ? null
+        : path.normalize(path.absolute(directoryPath));
+    if (selectedPath == null || _samePath(selectedPath, defaultDirectoryPath)) {
+      await GStorage.setting.delete(SettingBoxKey.subtitleFontDirectory);
+    } else {
+      await GStorage.setting.put(
+        SettingBoxKey.subtitleFontDirectory,
+        selectedPath,
+      );
+    }
+  }
+
+  static bool _samePath(String first, String second) {
+    final normalizedFirst = path.normalize(path.absolute(first));
+    final normalizedSecond = path.normalize(path.absolute(second));
+    return Platform.isWindows
+        ? normalizedFirst.toLowerCase() == normalizedSecond.toLowerCase()
+        : normalizedFirst == normalizedSecond;
+  }
 
   static String? _fontExtension(String name) {
     final extension = path.extension(name);
@@ -51,17 +275,70 @@ abstract final class SubtitleFontUtils {
   }
 
   static Future<Directory> ensureDirectory() async {
-    final dir = await directory.create(recursive: true);
+    Directory dir;
+    try {
+      dir = await directory.create(recursive: true);
+    } catch (_) {
+      dir = Directory(defaultDirectoryPath);
+      try {
+        await dir.create(recursive: true);
+      } catch (_) {
+        _activeDirectoryPath = dir.path;
+        return dir;
+      }
+    }
+
     final bundledFont = File(path.join(dir.path, bundledFontName));
     if (!await bundledFont.exists()) {
+      final temporaryFont = File('${bundledFont.path}.tmp');
+      try {
+        final data = await rootBundle.load(bundledFontAsset);
+        final bytes = data.buffer.asUint8List(
+          data.offsetInBytes,
+          data.lengthInBytes,
+        );
+        await temporaryFont.writeAsBytes(bytes, flush: true);
+        await temporaryFont.rename(bundledFont.path);
+      } catch (_) {
+        try {
+          if (await temporaryFont.exists()) await temporaryFont.delete();
+        } catch (_) {}
+      }
+    }
+    _activeDirectoryPath = dir.path;
+    return dir;
+  }
+
+  static Future<void> removeDuplicateBundledFontFromDefaultDirectory() async {
+    if (_samePath(directoryPath, defaultDirectoryPath)) return;
+    final bundledFont = File(path.join(defaultDirectoryPath, bundledFontName));
+    if (!await bundledFont.exists()) return;
+
+    RandomAccessFile? handle;
+    try {
       final data = await rootBundle.load(bundledFontAsset);
       final bytes = data.buffer.asUint8List(
         data.offsetInBytes,
         data.lengthInBytes,
       );
-      await bundledFont.writeAsBytes(bytes, flush: true);
+      if (await bundledFont.length() != bytes.length) return;
+
+      handle = await bundledFont.open();
+      for (var offset = 0; offset < bytes.length; offset += 64 * 1024) {
+        final end = (offset + 64 * 1024).clamp(0, bytes.length);
+        final chunk = await _readAt(handle, offset, end - offset);
+        for (var index = 0; index < chunk.length; index++) {
+          if (chunk[index] != bytes[offset + index]) return;
+        }
+      }
+      await handle.close();
+      handle = null;
+      await bundledFont.delete();
+    } catch (_) {
+      // Keep the existing file whenever its contents cannot be verified.
+    } finally {
+      await handle?.close();
     }
-    return dir;
   }
 
   static Future<List<File>> listFonts() async {
@@ -195,7 +472,8 @@ abstract final class SubtitleFontUtils {
   }
 
   static Future<void> deleteFont(File file) async {
-    final normalizedDirectory = path.normalize(directory.absolute.path);
+    final activeDirectory = await ensureDirectory();
+    final normalizedDirectory = path.normalize(activeDirectory.absolute.path);
     final normalizedFile = path.normalize(file.absolute.path);
     final fileDirectory = path.dirname(normalizedFile);
     final sameDirectory = Platform.isWindows

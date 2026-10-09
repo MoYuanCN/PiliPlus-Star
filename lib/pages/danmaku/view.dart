@@ -7,6 +7,7 @@ import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
 import 'package:PiliPlus/plugin/pl_player/utils/danmaku_options.dart';
 import 'package:PiliPlus/utils/danmaku_utils.dart';
+import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:canvas_danmaku/canvas_danmaku.dart';
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
@@ -180,12 +181,19 @@ class _PlDanmakuState extends State<PlDanmaku> {
             ? playerController.danmakuOpacity.value
             : 0,
         duration: const Duration(milliseconds: 100),
-        child: DanmakuScreen<DanmakuExtra>(
-          createdController: (e) {
-            playerController.danmakuController = _controller = e;
-          },
-          option: option,
-          size: widget.size,
+        child: DefaultTextStyle.merge(
+          style: TextStyle(
+            fontFamily: Pref.danmakuFontFamily.isEmpty
+                ? null
+                : Pref.danmakuFontFamily,
+          ),
+          child: DanmakuScreen<DanmakuExtra>(
+            createdController: (e) {
+              playerController.danmakuController = _controller = e;
+            },
+            option: option,
+            size: widget.size,
+          ),
         ),
       ),
     );

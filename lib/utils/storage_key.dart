@@ -15,7 +15,6 @@ abstract final class SettingBoxKey {
       disableUpdateCheck = 'disableUpdateCheck',
       enableHA = 'enableHA',
       enableBangumiResolver = 'enableBangumiResolver',
-      bangumiResolverDefaultRegion = 'bangumiResolverDefaultRegion',
       bangumiResolverCn = 'bangumiResolverCn',
       bangumiResolverHk = 'bangumiResolverHk',
       bangumiResolverTw = 'bangumiResolverTw',
@@ -184,6 +183,8 @@ abstract final class SettingBoxKey {
       uiScale = 'uiScale';
 
   static const String subtitlePreferenceV2 = 'subtitlePreferenceV2',
+      subtitleLanguagePreferences = 'subtitleLanguagePreferences',
+      subtitleCustomLanguageTags = 'subtitleCustomLanguageTags',
       enableDragSubtitle = 'enableDragSubtitle',
       subtitlePaddingH = 'subtitlePaddingH',
       subtitlePaddingB = 'subtitlePaddingB',
@@ -192,7 +193,8 @@ abstract final class SettingBoxKey {
       subtitleFontScale = 'subtitleFontScale',
       subtitleFontScaleFS = 'subtitleFontScaleFS',
       subtitleFontWeight = 'subtitleFontWeight',
-      subtitleFontFamily = 'subtitleFontFamily';
+      subtitleFontFamily = 'subtitleFontFamily',
+      subtitleFontDirectory = 'subtitleFontDirectory';
 
   static const String webdavUri = 'webdavUri',
       webdavUsername = 'webdavUsername',
@@ -225,6 +227,7 @@ abstract final class SettingBoxKey {
       danmakuFixedV = 'danmakuFixedV',
       danmakuStatic2Scroll = 'danmakuStatic2Scroll',
       danmakuLineHeight = 'danmakuLineHeight',
+      danmakuFontFamily = 'danmakuFontFamily',
       danmakuStrokeWidth = 'strokeWidth',
       danmakuFontWeight = 'fontWeight';
 
@@ -236,6 +239,25 @@ abstract final class SettingBoxKey {
       appFontWeightV2 = 'appFontWeightV2',
       dynamicColor = 'dynamicColor',
       customColor = 'customColor',
+      customThemeColors = 'customThemeColors',
+      mpvInterpolation = 'mpvInterpolation',
+      mpvDeband = 'mpvDeband',
+      developerModeEnabled = 'developerModeEnabled',
+      subtitleFontLanguageMap = 'subtitleFontLanguageMap',
+      mpvVideoOutput = 'mpvVideoOutput',
+      mpvAudioLanguage = 'mpvAudioLanguage',
+      mpvSubtitleLanguage = 'mpvSubtitleLanguage',
+      mpvCacheEnabled = 'mpvCacheEnabled',
+      mpvSubtitleAutoLoad = 'mpvSubtitleAutoLoad',
+      mpvStartFullscreen = 'mpvStartFullscreen',
+      mpvLogLevel = 'mpvLogLevel',
+      externalPlayerType = 'externalPlayerType',
+      externalPlayerPath = 'externalPlayerPath',
+      externalPlayerArguments = 'externalPlayerArguments',
+      externalPlayerMpvPath = 'externalPlayerMpvPath',
+      externalPlayerMpvArguments = 'externalPlayerMpvArguments',
+      externalPlayerPotPlayerPath = 'externalPlayerPotPlayerPath',
+      externalPlayerPotPlayerArguments = 'externalPlayerPotPlayerArguments',
       displayMode = 'displayMode',
       smallCardWidth = 'smallCardWidth',
       recommendCardWidth = 'recommendCardWidth',

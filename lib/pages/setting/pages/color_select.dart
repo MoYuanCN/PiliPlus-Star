@@ -61,6 +61,17 @@ class _ColorSelectPageState extends State<ColorSelectPage> {
     Get.updateMyAppTheme();
   }
 
+  Future<void> _refreshWallpaperColors() async {
+    final supported = await MyApp.refreshPlatformColors();
+    if (!mounted) return;
+    if (supported) {
+      Get.updateMyAppTheme();
+      SmartDialog.showToast('已更新系统壁纸颜色');
+    } else {
+      SmartDialog.showToast('设备未提供系统动态颜色');
+    }
+  }
+
   late ThemeData theme;
 
   @override
@@ -137,7 +148,8 @@ class _ColorSelectPageState extends State<ColorSelectPage> {
           if (!Platform.isIOS)
             Obx(
               () => ListTile(
-                title: const Text('动态取色'),
+                title: const Text('系统动态颜色（Monet）'),
+                subtitle: const Text('Android 12 及以上可读取系统壁纸调色板'),
                 leading: ExcludeFocus(
                   child: Checkbox(
                     value: ctr.dynamicColor.value,
@@ -147,6 +159,17 @@ class _ColorSelectPageState extends State<ColorSelectPage> {
                   ),
                 ),
                 onTap: _onChanged,
+              ),
+            ),
+          if (Platform.isAndroid)
+            Obx(
+              () => ListTile(
+                enabled: ctr.dynamicColor.value,
+                onTap: _refreshWallpaperColors,
+                leading: const Icon(Icons.refresh),
+                title: const Text('重新读取系统壁纸颜色'),
+                subtitle: const Text('更换壁纸后可手动刷新配色'),
+                trailing: const Icon(Icons.chevron_right),
               ),
             ),
           Padding(
@@ -187,6 +210,10 @@ class _ColorSelectPageState extends State<ColorSelectPage> {
 
   Widget _buildColorPanel() {
     final currentColor = ctr.currentColor.value;
+    final currentSeed =
+        currentColor >= 0 && currentColor < colorThemeTypes.length
+        ? colorThemeTypes[currentColor].color
+        : Color(currentColor);
     return AnimatedHeightWidgetExt(
       expand: !ctr.dynamicColor.value,
       duration: const Duration(milliseconds: 200),
@@ -195,6 +222,33 @@ class _ColorSelectPageState extends State<ColorSelectPage> {
         runSpacing: 18,
         alignment: .center,
         children: [
+          GestureDetector(
+            behavior: .opaque,
+            onTap: () async {
+              final raw = currentSeed.toARGB32();
+              if (ctr.customColors.contains(raw)) {
+                SmartDialog.showToast('这个颜色已收藏');
+                return;
+              }
+              ctr.customColors.add(raw);
+              await GStorage.setting.put(
+                SettingBoxKey.customThemeColors,
+                ctr.customColors.toList(),
+              );
+              SmartDialog.showToast('已收藏主题色');
+            },
+            child: Column(
+              spacing: 3,
+              children: [
+                Icon(
+                  Icons.bookmark_add_outlined,
+                  size: 48,
+                  color: theme.colorScheme.primary,
+                ),
+                Text('收藏当前色', style: theme.textTheme.labelSmall),
+              ],
+            ),
+          ),
           Builder(
             builder: (context) {
               final isCurr = currentColor > colorThemeTypes.length;
@@ -249,6 +303,46 @@ class _ColorSelectPageState extends State<ColorSelectPage> {
               );
             },
           ),
+          ...ctr.customColors.mapIndexed((index, value) {
+            final color = Color(value);
+            final isCurr = currentColor == value;
+            return GestureDetector(
+              behavior: .opaque,
+              onTap: () {
+                ctr.currentColor.value = value;
+                GStorage.setting
+                    .put(SettingBoxKey.customColor, value)
+                    .whenComplete(Get.updateMyAppTheme);
+              },
+              onLongPress: () async {
+                ctr.customColors.removeAt(index);
+                await GStorage.setting.put(
+                  SettingBoxKey.customThemeColors,
+                  ctr.customColors.toList(),
+                );
+                SmartDialog.showToast('已移除收藏颜色');
+              },
+              child: Column(
+                spacing: 3,
+                children: [
+                  ColorPalette(
+                    colorScheme: color.asColorSchemeSeed(
+                      _dynamicSchemeVariant,
+                      theme.brightness,
+                    ),
+                    selected: isCurr,
+                  ),
+                  Text(
+                    '#${(value & 0xFFFFFF).toRadixString(16).toUpperCase().padLeft(6)}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isCurr ? null : theme.colorScheme.outline,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
           ...colorThemeTypes.mapIndexed(
             (i, e) {
               final color = e.color;
@@ -292,5 +386,6 @@ class _ColorSelectPageState extends State<ColorSelectPage> {
 class _ColorSelectController extends GetxController {
   final RxBool dynamicColor = Pref.dynamicColor.obs;
   final RxInt currentColor = Pref.customColor.obs;
+  final RxList<int> customColors = Pref.customThemeColors.obs;
   final Rx<ThemeType> themeType = Pref.themeType.obs;
 }

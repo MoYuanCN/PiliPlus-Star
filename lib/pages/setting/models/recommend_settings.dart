@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
 
 List<SettingsModel> get recommendSettings => [
+  const SettingSectionModel('推荐来源与刷新'),
   const SwitchModel(
     title: '首页使用app端推荐',
     subtitle: '若web端推荐不太符合预期，可尝试切换至app端推荐',
@@ -32,6 +33,7 @@ List<SettingsModel> get recommendSettings => [
       }
     },
   ),
+  const SettingSectionModel('内容过滤'),
   SwitchModel(
     title: '显示上次看到位置提示',
     subtitle: '保留上次推荐时，在上次刷新位置显示提示',
@@ -89,6 +91,7 @@ List<SettingsModel> get recommendSettings => [
     onChanged: (value) => RecommendFilter.minPlayForRcmd = value,
     filterScope: '推荐、热门、分区、相关视频',
   ),
+  const SettingSectionModel('过滤例外'),
   SwitchModel(
     title: '已关注UP豁免推荐过滤',
     subtitle: '推荐中已关注用户发布的内容不会被过滤',

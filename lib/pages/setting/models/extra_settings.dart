@@ -53,7 +53,7 @@ import 'package:get/get.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:material_ui/material_ui.dart' hide RefreshIndicator;
 
-List<SettingsModel> get extraSettings => [
+List<SettingsModel> get allExtraSettings => [
   if (PlatformUtils.isDesktop) ...[
     SwitchModel(
       title: '退出时最小化',
@@ -189,6 +189,14 @@ List<SettingsModel> get extraSettings => [
       style: theme.textTheme.titleSmall,
     ),
     onTap: _showDmHeightDialog,
+  ),
+  NormalModel(
+    title: '弹幕字体',
+    subtitle: '单独设置弹幕字体；填写系统或已安装字体的家族名',
+    leading: const Icon(Icons.font_download_outlined),
+    getSubtitle: () =>
+        Pref.danmakuFontFamily.isEmpty ? '默认字体' : Pref.danmakuFontFamily,
+    onTap: _showDanmakuFontDialog,
   ),
   const SwitchModel(
     title: '显示视频警告/争议信息',
@@ -649,6 +657,243 @@ List<SettingsModel> get extraSettings => [
   ),
 ];
 
+typedef _ExtraSettingsSection = ({String title, Set<String> settingTitles});
+
+const _contentSettingSections = <_ExtraSettingsSection>[
+  (
+    title: '视频详情',
+    settingTitles: {
+      '显示视频分段信息',
+      '视频页显示相关视频',
+      '默认展开视频简介',
+      '横屏自动展开视频简介',
+      '横屏分P/合集列表显示在Tab栏',
+      '显示视频警告/争议信息',
+      '横屏播放页在侧栏打开UP主页',
+      '分P/合集：倒序播放从首集开始播放',
+      '显示继续播放分P提示',
+      '默认展示评论区',
+      '显示热门推荐',
+      '启用AI总结',
+    },
+  ),
+  (
+    title: '播放器扩展',
+    settingTitles: {
+      '空降助手',
+      '番剧片头/片尾跳过类型',
+      '音量均衡',
+      '提前初始化播放器',
+      '展示追番时间表',
+      '启用双指缩小视频',
+    },
+  ),
+  (
+    title: '图片与预览',
+    settingTitles: {
+      '横屏在侧栏打开图片预览',
+      '预览 Live Photo',
+      '滑动跳转预览视频缩略图',
+      '静默下载图片',
+      '长按/右键显示图片菜单',
+    },
+  ),
+];
+
+const _communitySettingSections = <_ExtraSettingsSection>[
+  (
+    title: '评论',
+    settingTitles: {
+      '显示视频评论',
+      '显示番剧评论',
+      '评论折叠行数',
+      '评论关键词过滤',
+      '记录评论',
+      '发评反诈',
+      '使用「哔哩发评反诈」检查评论',
+      '屏蔽带货评论',
+      '评论区搜索关键词',
+      '评论展示',
+      '楼中楼评论展示',
+    },
+  ),
+  (
+    title: '动态与消息',
+    settingTitles: {
+      '检查未读动态',
+      '显示动态警告/争议信息',
+      '动态关键词过滤',
+      '发布/转发动态反诈',
+      '屏蔽带货动态',
+      '消息页禁用"收到的赞"功能',
+      '动态展示',
+      '显示动态互动内容',
+      '展示头像/评论/动态装饰',
+      '点击表情显示 Tooltip',
+      '显示粉丝勋章',
+      '动态/专栏详情页展示底部操作栏',
+    },
+  ),
+  (
+    title: 'UP 主主页',
+    settingTitles: {'用户页默认展示TAB', '显示UP主页小店TAB'},
+  ),
+];
+
+const _danmakuSettingSections = <_ExtraSettingsSection>[
+  (
+    title: '弹幕',
+    settingTitles: {
+      '弹幕行高',
+      '弹幕字体',
+      '显示会员彩色弹幕',
+      '合并弹幕',
+      '显示高能进度条',
+    },
+  ),
+];
+
+const _subtitleSettingSections = <_ExtraSettingsSection>[
+  (
+    title: '字幕',
+    settingTitles: {'启用拖拽字幕调整底部边距'},
+  ),
+];
+
+const _qualityEnhancementSections = <_ExtraSettingsSection>[
+  (
+    title: '画质增强',
+    settingTitles: {'超分辨率'},
+  ),
+];
+
+const _searchSettingSections = <_ExtraSettingsSection>[
+  (
+    title: '搜索',
+    settingTitles: {
+      '大家都在搜',
+      '搜索发现',
+      '搜索默认词',
+      '搜索建议',
+      '记录搜索历史',
+    },
+  ),
+  (
+    title: '收藏与快捷功能',
+    settingTitles: {'快速收藏'},
+  ),
+];
+
+const _networkSettingSections = <_ExtraSettingsSection>[
+  (
+    title: '连接',
+    settingTitles: {
+      '设置代理',
+      '启用HTTP/2',
+      '连接重试次数',
+      '连接重试间隔',
+      '禁用 SSL 证书验证',
+      '使用外部浏览器打开链接',
+    },
+  ),
+  (
+    title: '存储',
+    settingTitles: {
+      '缓存路径',
+      '允许三方APP访问私有存储',
+      '最大缓存大小',
+    },
+  ),
+  (
+    title: '更新',
+    settingTitles: {'检查更新', '屏蔽更新检查'},
+  ),
+];
+
+const _generalSettingSections = <_ExtraSettingsSection>[
+  (
+    title: '触控与页面',
+    settingTitles: {
+      '横向滑动阈值',
+      '刷新指示器高度',
+      '侧滑关闭二级页面',
+      '首页切换页面动画',
+    },
+  ),
+  (
+    title: '设备与反馈',
+    settingTitles: {'退出时最小化', '震动反馈'},
+  ),
+];
+
+Set<String> get _categorizedExtraSettingTitles => {
+  for (final section in [
+    ..._contentSettingSections,
+    ..._qualityEnhancementSections,
+    ..._danmakuSettingSections,
+    ..._subtitleSettingSections,
+    ..._communitySettingSections,
+    ..._searchSettingSections,
+    ..._networkSettingSections,
+    ..._generalSettingSections,
+  ])
+    ...section.settingTitles,
+};
+
+List<SettingsModel> _extraSettingsFor(
+  List<_ExtraSettingsSection> sections, {
+  bool includeSections = true,
+}) {
+  final source = allExtraSettings;
+  final result = <SettingsModel>[];
+  for (final section in sections) {
+    final matching = source
+        .where(
+          (setting) => section.settingTitles.contains(setting.effectiveTitle),
+        )
+        .toList();
+    if (matching.isEmpty) continue;
+    if (includeSections) result.add(SettingSectionModel(section.title));
+    result.addAll(matching);
+  }
+  return result;
+}
+
+List<SettingsModel> get contentSettings =>
+    _extraSettingsFor(_contentSettingSections);
+
+List<SettingsModel> get danmakuSettings =>
+    _extraSettingsFor(_danmakuSettingSections, includeSections: false);
+
+List<SettingsModel> get subtitleSettings =>
+    _extraSettingsFor(_subtitleSettingSections, includeSections: false);
+
+List<SettingsModel> get qualityEnhancementSettings =>
+    _extraSettingsFor(_qualityEnhancementSections);
+
+List<SettingsModel> get communitySettings =>
+    _extraSettingsFor(_communitySettingSections);
+
+List<SettingsModel> get searchSettings =>
+    _extraSettingsFor(_searchSettingSections);
+
+List<SettingsModel> get networkSettings =>
+    _extraSettingsFor(_networkSettingSections);
+
+List<SettingsModel> get extraSettings {
+  final categorized = _categorizedExtraSettingTitles;
+  final remaining = allExtraSettings
+      .where((setting) => !categorized.contains(setting.effectiveTitle))
+      .toList();
+  return [
+    ..._extraSettingsFor(_generalSettingSections),
+    if (remaining.isNotEmpty) ...[
+      const SettingSectionModel('其它'),
+      ...remaining,
+    ],
+  ];
+}
+
 Future<void> audioNormalization(
   BuildContext context,
   VoidCallback setState, {
@@ -917,6 +1162,42 @@ void _showDmHeightDialog(BuildContext context, VoidCallback setState) {
       ],
     ),
   );
+}
+
+void _showDanmakuFontDialog(BuildContext context, VoidCallback setState) {
+  final controller = TextEditingController(text: Pref.danmakuFontFamily);
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('弹幕字体'),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        decoration: const InputDecoration(
+          labelText: '字体家族名',
+          hintText: '留空使用默认字体',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: Get.back,
+          child: Text(
+            '取消',
+            style: TextStyle(color: ColorScheme.of(context).outline),
+          ),
+        ),
+        TextButton(
+          onPressed: () async {
+            final value = controller.text.trim();
+            await GStorage.setting.put(SettingBoxKey.danmakuFontFamily, value);
+            if (context.mounted) Get.back();
+            setState();
+          },
+          child: const Text('保存'),
+        ),
+      ],
+    ),
+  ).whenComplete(controller.dispose);
 }
 
 void _showTouchSlopDialog(BuildContext context, VoidCallback setState) {

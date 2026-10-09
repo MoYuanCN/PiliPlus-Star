@@ -711,6 +711,16 @@ class HeaderControlState extends State<HeaderControl>
                   leading: const Icon(Icons.file_open_outlined, size: 20),
                   title: const Text('加载字幕', style: titleStyle),
                 ),
+                if (PlatformUtils.isDesktop)
+                  ListTile(
+                    dense: true,
+                    onTap: () {
+                      Get.back();
+                      videoDetailCtr.playInExternalPlayer();
+                    },
+                    leading: const Icon(Icons.open_in_new, size: 20),
+                    title: const Text('外部播放器播放', style: titleStyle),
+                  ),
                 if (!videoDetailCtr.isFileSource &&
                     videoDetailCtr.subtitles.isNotEmpty)
                   ListTile(

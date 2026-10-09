@@ -37,44 +37,69 @@ class SettingPage extends StatefulWidget {
 }
 
 class _SettingPageState extends State<SettingPage> {
-  late SettingType _type = SettingType.privacySetting;
+  late SettingType _type = SettingType.playback;
   final RxBool _noAccount = Accounts.account.isEmpty.obs;
   late bool _isPortrait;
   late ThemeData theme;
 
   static const List<_SettingsModel> _items = [
     _SettingsModel(
-      type: SettingType.privacySetting,
-      subtitle: '黑名单',
-      icon: Icon(Icons.privacy_tip_outlined),
+      type: SettingType.playback,
+      subtitle: '倍速、手势、全屏与播放器控件',
+      icon: Icon(Icons.play_circle_outline),
     ),
     _SettingsModel(
-      type: SettingType.recommendSetting,
-      subtitle: '推荐来源（web/app）、刷新保留内容、过滤器',
+      type: SettingType.quality,
+      subtitle: '画质、音轨、字幕、弹幕、解码与缓存',
+      icon: Icon(Icons.high_quality_outlined),
+    ),
+    _SettingsModel(
+      type: SettingType.bangumi,
+      subtitle: '各地区番剧解析服务器与 CDN',
+      icon: Icon(Icons.public_outlined),
+    ),
+    _SettingsModel(
+      type: SettingType.browse,
+      subtitle: '首页推荐、搜索和快捷收藏',
       icon: Icon(Icons.explore_outlined),
     ),
     _SettingsModel(
-      type: SettingType.videoSetting,
-      subtitle: '画质、音质、解码、缓冲、音频输出等',
-      icon: Icon(Icons.video_settings_outlined),
+      type: SettingType.content,
+      subtitle: '视频详情、图片预览与播放扩展',
+      icon: Icon(Icons.video_library_outlined),
     ),
     _SettingsModel(
-      type: SettingType.playSetting,
-      subtitle: '双击/长按、全屏、后台播放、弹幕、字幕、底部进度条等',
-      icon: Icon(Icons.touch_app_outlined),
+      type: SettingType.community,
+      subtitle: '评论、动态、消息与 UP 主主页',
+      icon: Icon(Icons.forum_outlined),
     ),
     _SettingsModel(
-      type: SettingType.styleSetting,
-      subtitle: '横屏适配（平板）、侧栏、列宽、首页、动态红点、主题、字号、图片、帧率等',
+      type: SettingType.appearance,
+      subtitle: '界面布局、导航位置、字体与主题',
       icon: Icon(Icons.style_outlined),
     ),
     _SettingsModel(
-      type: SettingType.extraSetting,
-      subtitle: '震动、搜索、收藏、ai、评论、动态、代理、更新检查等',
-      icon: Icon(Icons.extension_outlined),
+      type: SettingType.privacy,
+      subtitle: '账号管理与内容屏蔽',
+      icon: Icon(Icons.privacy_tip_outlined),
     ),
     _SettingsModel(
-      type: SettingType.webdavSetting,
+      type: SettingType.storage,
+      subtitle: '连接、缓存路径、存储与更新',
+      icon: Icon(Icons.settings_ethernet_outlined),
+    ),
+    _SettingsModel(
+      type: SettingType.general,
+      subtitle: '触控、设备适配与通用行为',
+      icon: Icon(Icons.tune_outlined),
+    ),
+    _SettingsModel(
+      type: SettingType.developer,
+      subtitle: 'MPV 配置、日志与诊断工具',
+      icon: Icon(Icons.developer_mode_outlined),
+    ),
+    _SettingsModel(
+      type: SettingType.webdav,
       icon: Icon(MdiIcons.databaseCogOutline),
     ),
     _SettingsModel(
@@ -114,19 +139,14 @@ class _SettingPageState extends State<SettingPage> {
                   Expanded(
                     flex: 6,
                     child: switch (_type) {
-                      .privacySetting ||
-                      .recommendSetting ||
-                      .videoSetting ||
-                      .playSetting ||
-                      .styleSetting ||
-                      .extraSetting => CommonSetting(
-                        settingType: _type,
-                        showAppBar: false,
-                      ),
-                      .webdavSetting => const WebDavSettingPage(
+                      .webdav => const WebDavSettingPage(
                         showAppBar: false,
                       ),
                       .about => const AboutPage(showAppBar: false),
+                      _ => CommonSetting(
+                        settingType: _type,
+                        showAppBar: false,
+                      ),
                     },
                   ),
                 ],
@@ -145,14 +165,9 @@ class _SettingPageState extends State<SettingPage> {
     if (_isPortrait) {
       Get.to(
         () => switch (type) {
-          .privacySetting ||
-          .recommendSetting ||
-          .videoSetting ||
-          .playSetting ||
-          .styleSetting ||
-          .extraSetting => CommonSetting(settingType: type),
-          .webdavSetting => const WebDavSettingPage(),
+          .webdav => const WebDavSettingPage(),
           .about => const AboutPage(),
+          _ => CommonSetting(settingType: type),
         },
       );
     } else {

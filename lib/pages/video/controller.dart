@@ -63,11 +63,13 @@ import 'package:PiliPlus/utils/extension/iterable_ext.dart';
 import 'package:PiliPlus/utils/extension/nested_scroll_ext.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/extension/size_ext.dart';
+import 'package:PiliPlus/utils/external_player.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/path_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
+import 'package:PiliPlus/utils/subtitle_font_utils.dart';
 import 'package:PiliPlus/utils/subtitle_utils.dart';
 import 'package:PiliPlus/utils/theme_utils.dart';
 import 'package:PiliPlus/utils/utils.dart';
@@ -780,7 +782,7 @@ class VideoDetailController extends GetxController
       width: firstVideo.width,
       height: firstVideo.height,
       volume: volume,
-      autoFullScreenFlag: autoFullScreenFlag,
+      autoFullScreenFlag: autoFullScreenFlag || Pref.mpvStartFullscreen,
     );
 
     if (isClosed) return;
@@ -1080,16 +1082,105 @@ class VideoDetailController extends GetxController
   late final showVP = true.obs;
   late final viewPointList = <ViewPointSegment>[].obs;
 
+  Future<void> playInExternalPlayer() async {
+    final video = videoUrl;
+    if (video == null || video.isEmpty) {
+      SmartDialog.showToast('当前视频没有可用的视频流');
+      return;
+    }
+    try {
+      String? subtitlePath;
+      final selectedIndex = vttSubtitlesIndex.value - 1;
+      if (selectedIndex >= 0 && selectedIndex < subtitles.length) {
+        var cached = vttSubtitles[selectedIndex];
+        if (cached == null) {
+          final subtitle = subtitles[selectedIndex];
+          final subtitleUrl = subtitle.subtitleUrl;
+          if (subtitleUrl == null || subtitleUrl.isEmpty) {
+            SmartDialog.showToast('当前字幕没有可下载的地址');
+            return;
+          }
+          final content = await VideoHttp.getSubtitles(
+            subtitleUrl,
+            preserveAss: true,
+          );
+          if (content != null) {
+            final extension = SubtitleUtils.isAss(content) ? 'ass' : 'vtt';
+            final file = File(
+              path.join(
+                tmpDirPath,
+                'piliplus-external-subtitle-${Utils.generateRandomString(12)}.$extension',
+              ),
+            );
+            await file.writeAsString(content, flush: true);
+            cached = (isData: false, id: file.path);
+            vttSubtitles[selectedIndex] = cached;
+          }
+        }
+        if (cached != null) {
+          if (cached.isData) {
+            final file = File(
+              path.join(
+                tmpDirPath,
+                'piliplus-external-subtitle-${Utils.generateRandomString(12)}.vtt',
+              ),
+            );
+            await file.writeAsString(cached.id, flush: true);
+            subtitlePath = file.path;
+          } else {
+            final extension = path.extension(cached.id);
+            final file = File(
+              path.join(
+                tmpDirPath,
+                'piliplus-external-subtitle-${Utils.generateRandomString(12)}${extension.isEmpty ? '.vtt' : extension}',
+              ),
+            );
+            await File(cached.id).copy(file.path);
+            subtitlePath = file.path;
+          }
+        }
+      }
+
+      String? title;
+      try {
+        title = isUgc
+            ? Get.find<UgcIntroController>(tag: heroTag).videoDetail.value.title
+            : Get.find<PgcIntroController>(tag: heroTag)
+                  .videoDetail
+                  .value
+                  .title;
+      } catch (_) {}
+      await ExternalPlayer.play(
+        video: video,
+        audio: audioUrl,
+        subtitle: subtitlePath,
+        title: title,
+      );
+      SmartDialog.showToast('已启动外部播放器');
+    } catch (error) {
+      SmartDialog.showToast('启动外部播放器失败：$error');
+    }
+  }
+
   // 设定字幕轨道
   Future<void> setSubtitle(int index) async {
     if (index <= 0) {
       await plPlayerController.videoPlayerController?.setSubtitleTrack(.no());
+      await plPlayerController.applySubtitleFontFamilyForTrack(
+        Pref.subtitleFontFamily,
+        forceAssFont: false,
+      );
       vttSubtitlesIndex.value = index;
       return;
     }
 
     Future<void> setSub(({bool isData, String id}) subtitle) async {
       final sub = subtitles[index - 1];
+      final languageFont = SubtitleFontUtils.fontFamilyForLanguage(sub.lan);
+      await plPlayerController.applySubtitleFontFamilyForTrack(
+        languageFont ?? Pref.subtitleFontFamily,
+        forceAssFont: languageFont != null,
+      );
 
       String subUri = subtitle.id;
       if (subtitle.isData) {
@@ -1312,7 +1403,45 @@ class VideoDetailController extends GetxController
 
   Future<void> _setSubtitle(List<Subtitle> sub) async {
     subtitles.value = sub;
-    final idx = switch (Pref.subtitlePreferenceV2) {
+    final preference = Pref.subtitlePreferenceV2;
+    if (preference == .off) {
+      await setSubtitle(0);
+      return;
+    }
+
+    final preferredLanguages = Pref.subtitleLanguagePreferences;
+    for (final language in preferredLanguages) {
+      final candidates = <int>[];
+      for (var index = 0; index < sub.length; index++) {
+        if (SubtitleFontUtils.matchesLanguagePreference(
+          sub[index].lan,
+          language,
+        )) {
+          candidates.add(index);
+        }
+      }
+      if (candidates.isEmpty) continue;
+
+      final nonAi = candidates.where((index) => !sub[index].isAi).firstOrNull;
+      final useAiWhenMuted =
+          nonAi == null &&
+          preference == .auto &&
+          PlatformUtils.isMobile &&
+          (await FlutterVolumeController.getVolume() ?? 0.0) <= 0.0;
+      final selectedIndex = switch (preference) {
+        .off => null,
+        .on => nonAi ?? candidates.first,
+        .withoutAi => nonAi,
+        .auto => nonAi ?? (useAiWhenMuted ? candidates.first : null),
+      };
+
+      if (selectedIndex != null) {
+        await setSubtitle(selectedIndex + 1);
+        return;
+      }
+    }
+
+    final idx = switch (preference) {
       .off => 0,
       .on => 1,
       .withoutAi => sub.first.lan.startsWith('ai') ? 0 : 1,

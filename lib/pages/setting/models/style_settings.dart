@@ -45,6 +45,7 @@ import 'package:material_ui/material_ui.dart' hide StatefulBuilder;
 import 'package:path/path.dart' as path;
 
 List<SettingsModel> get styleSettings => [
+  const SettingSectionModel('窗口与屏幕布局'),
   if (PlatformUtils.isDesktop) ...[
     const SwitchModel(
       title: '显示窗口标题栏',
@@ -84,6 +85,7 @@ List<SettingsModel> get styleSettings => [
     defaultVal: false,
     needReboot: true,
   ),
+  const SettingSectionModel('字体与缩放'),
   NormalModel(
     title: '应用界面字体',
     subtitle: '只影响应用界面，不影响字幕',
@@ -102,6 +104,7 @@ List<SettingsModel> get styleSettings => [
     getSubtitle: () => '当前：${Pref.pageTransition.name}',
     onTap: _showTransitionDialog,
   ),
+  const SettingSectionModel('导航栏'),
   const SwitchModel(
     title: '优化平板导航栏',
     leading: Icon(Icons.auto_fix_high),
@@ -124,6 +127,7 @@ List<SettingsModel> get styleSettings => [
     defaultVal: false,
     needReboot: true,
   ),
+  const SettingSectionModel('页面布局'),
   NormalModel(
     leading: const Icon(Icons.calendar_view_week_outlined),
     title: '列表宽度（dp）限制',
@@ -131,6 +135,7 @@ List<SettingsModel> get styleSettings => [
         '当前: 主页${Pref.recommendCardWidth.toInt()}dp 其他${Pref.smallCardWidth.toInt()}dp，屏幕宽度:${MediaQuery.widthOf(Get.context!).toPrecision(2)}dp。宽度越小列数越多。',
     onTap: _showCardWidthDialog,
   ),
+  const SettingSectionModel('播放页布局'),
   const SwitchModel(
     title: '播放页移除安全边距',
     leading: Icon(Icons.fit_screen_outlined),
@@ -143,6 +148,7 @@ List<SettingsModel> get styleSettings => [
     setKey: SettingBoxKey.darkVideoPage,
     defaultVal: false,
   ),
+  const SettingSectionModel('动态与消息'),
   SwitchModel(
     title: '动态页启用瀑布流',
     subtitle: '关闭会显示为单列',
@@ -226,6 +232,7 @@ List<SettingsModel> get styleSettings => [
     defaultVal: PlatformUtils.isMobile,
     needReboot: true,
   ),
+  const SettingSectionModel('图片显示'),
   NormalModel(
     onTap: (context, setState) => _showQualityDialog(
       context: context,
@@ -287,6 +294,7 @@ List<SettingsModel> get styleSettings => [
     ),
     onTap: _showToastDialog,
   ),
+  const SettingSectionModel('主题'),
   PopupModel(
     leading: const Icon(Icons.flashlight_on_outlined),
     title: '主题模式',
@@ -331,6 +339,7 @@ List<SettingsModel> get styleSettings => [
       );
     },
   ),
+  const SettingSectionModel('首页与导航项'),
   PopupModel(
     leading: const Icon(Icons.home_outlined),
     title: '默认启动页',

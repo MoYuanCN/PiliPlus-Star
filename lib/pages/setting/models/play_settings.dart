@@ -2,7 +2,6 @@ import 'dart:io' show Platform;
 
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/models/common/super_chat_type.dart';
-import 'package:PiliPlus/models/common/video/subtitle_pref_type.dart';
 import 'package:PiliPlus/pages/main/controller.dart';
 import 'package:PiliPlus/pages/setting/models/model.dart';
 import 'package:PiliPlus/pages/setting/pages/fullscreen_sc_size.dart';
@@ -41,6 +40,13 @@ List<SettingsModel> get playSettings => [
       defaultVal: true,
     ),
   NormalModel(
+    title: '字幕设置',
+    subtitle: '设置字幕语言、字体和自动选择策略',
+    leading: const Icon(Icons.closed_caption_outlined),
+    onTap: (context, setState) => Get.toNamed('/subtitleFontSetting'),
+  ),
+  const SettingSectionModel('播放速度与手势'),
+  NormalModel(
     onTap: (context, setState) => Get.toNamed('/playSpeedSet'),
     leading: const Icon(Icons.speed_outlined),
     title: '倍速设置',
@@ -60,6 +66,7 @@ List<SettingsModel> get playSettings => [
     setKey: SettingBoxKey.autoPlayEnable,
     defaultVal: false,
   ),
+  const SettingSectionModel('全屏与播放器控件'),
   const SwitchModel(
     title: '全屏显示锁定按钮',
     leading: Icon(Icons.lock_outline),
@@ -141,12 +148,7 @@ List<SettingsModel> get playSettings => [
     defaultValue: 90,
     isFilter: false,
   ),
-  NormalModel(
-    title: '自动启用字幕',
-    leading: const Icon(Icons.closed_caption_outlined),
-    getSubtitle: () => '当前选择偏好：${Pref.subtitlePreferenceV2.desc}',
-    onTap: _showSubtitleDialog,
-  ),
+  const SettingSectionModel('后台与键盘控制'),
   if (PlatformUtils.isDesktop)
     SwitchModel(
       title: '最小化时暂停/还原时播放',
@@ -165,6 +167,7 @@ List<SettingsModel> get playSettings => [
     setKey: SettingBoxKey.keyboardControl,
     defaultVal: true,
   ),
+  const SettingSectionModel('直播与画中画显示'),
   PopupModel(
     title: 'SuperChat (醒目留言) 显示类型',
     leading: const Icon(Icons.live_tv),
@@ -295,6 +298,7 @@ List<SettingsModel> get playSettings => [
         .put(VideoBoxKey.playRepeat, value.index)
         .whenComplete(setState),
   ),
+  const SettingSectionModel('播放器配置'),
   const SwitchModel(
     title: '播放器设置仅对当前生效',
     subtitle: '弹幕、字幕及部分设置中没有的设置除外',
@@ -303,27 +307,6 @@ List<SettingsModel> get playSettings => [
     defaultVal: false,
   ),
 ];
-
-Future<void> _showSubtitleDialog(
-  BuildContext context,
-  VoidCallback setState,
-) async {
-  final res = await showDialog<SubtitlePrefType>(
-    context: context,
-    builder: (context) => SelectDialog<SubtitlePrefType>(
-      title: '字幕选择偏好',
-      value: Pref.subtitlePreferenceV2,
-      values: SubtitlePrefType.values.map((e) => (e, e.desc)).toList(),
-    ),
-  );
-  if (res != null) {
-    await GStorage.setting.put(
-      SettingBoxKey.subtitlePreferenceV2,
-      res.index,
-    );
-    setState();
-  }
-}
 
 Future<void> _showFullScreenModeDialog(
   BuildContext context,

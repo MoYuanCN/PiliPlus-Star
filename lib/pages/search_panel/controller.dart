@@ -1,4 +1,4 @@
-import 'dart:async' show StreamSubscription, Timer;
+import 'dart:async' show StreamSubscription, Timer, unawaited;
 
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/search.dart';
@@ -73,6 +73,11 @@ class SearchPanelController<R extends SearchNumData<T>, T>
       });
     } catch (_) {}
     queryData();
+    if ((searchType == SearchType.media_bangumi ||
+            searchType == SearchType.media_ft) &&
+        BangumiRegion.configured.isNotEmpty) {
+      unawaited(_prefetchResolverRegions());
+    }
   }
 
   @override
@@ -93,6 +98,13 @@ class SearchPanelController<R extends SearchNumData<T>, T>
   final Rxn<BangumiRegion> resolverRegion = Rxn<BangumiRegion>();
   String? _resolverCursor;
   int _resolverRequestGeneration = 0;
+  final _regionRequests =
+      <
+        ({BangumiRegion region, int page}),
+        Future<LoadingState<SearchPgcData>>
+      >{};
+  final _regionHasMore = <BangumiRegion, bool>{};
+  final _regionCursors = <BangumiRegion, String?>{};
 
   bool get _usesIntlAppSearch =>
       searchType == SearchType.media_bangumi &&
@@ -109,6 +121,54 @@ class SearchPanelController<R extends SearchNumData<T>, T>
     await queryDataSuperseding();
   }
 
+  Future<void> _prefetchResolverRegions() async {
+    final regions = BangumiRegion.configured.where(
+      (region) =>
+          searchType != SearchType.media_ft || region != BangumiRegion.sea,
+    );
+    await Future.wait(
+      regions.map((region) async {
+        try {
+          await _regionPage(region, 1);
+        } catch (_) {}
+      }),
+    );
+  }
+
+  Future<LoadingState<SearchPgcData>> _regionPage(
+    BangumiRegion region,
+    int requestedPage,
+  ) {
+    final key = (region: region, page: requestedPage);
+    return _regionRequests.putIfAbsent(key, () async {
+      final result = await SearchHttp.searchByType<SearchPgcData>(
+        searchType: searchType,
+        keyword: keyword,
+        page: requestedPage,
+        order: order,
+        duration: videoDurationType?.index,
+        tids: videoZoneType?.tids,
+        orderSort: userOrderType?.value.orderSort,
+        userType: userType?.value.index,
+        categoryId: articleZoneType?.value.categoryId,
+        pubBegin: pubBegin,
+        pubEnd: pubEnd,
+        resolverRegion: region,
+        resolverCursor: region == BangumiRegion.sea
+            ? _regionCursors[region]
+            : null,
+        onSuccess: (_) {},
+      );
+      if (result is Success<SearchPgcData>) {
+        _regionCursors[region] = result.response.nextCursor;
+        _regionHasMore[region] = region == BangumiRegion.sea
+            ? result.response.nextCursor?.isNotEmpty == true
+            : (result.response.numResults ?? 0) > requestedPage * 20;
+      }
+      return result;
+    });
+  }
+
   @override
   Future<LoadingState<R>> customGetData() async {
     final requestGeneration = _resolverRequestGeneration;
@@ -118,6 +178,34 @@ class SearchPanelController<R extends SearchNumData<T>, T>
         searchType == SearchType.media_bangumi &&
         requestedRegion == BangumiRegion.sea;
     final requestedCursor = useIntlAppSearch ? _resolverCursor : null;
+    if (requestedRegion != null &&
+        (searchType == SearchType.media_bangumi ||
+            searchType == SearchType.media_ft)) {
+      final result = await _regionPage(requestedRegion, requestedPage);
+      if (requestGeneration != _resolverRequestGeneration) {
+        return result as LoadingState<R>;
+      }
+      if (result is Success<SearchPgcData> && result.response.list != null) {
+        final seen = <String>{};
+        if (requestedPage > 1) {
+          final current = loadingState.value;
+          if (current is Success<List<T>?>) {
+            for (final value in current.response ?? <T>[]) {
+              if (value is SearchPgcItemModel) {
+                final key = _pgcResultKey(value);
+                if (key != null) seen.add(key);
+              }
+            }
+          }
+        }
+        result.response.list!.removeWhere((item) {
+          final key = _pgcResultKey(item);
+          if (item.isResolverInjected && key == null) return true;
+          return key != null && !seen.add(key);
+        });
+      }
+      return result as LoadingState<R>;
+    }
     final result = await SearchHttp.searchByType<R>(
       searchType: searchType_,
       keyword: keyword,
@@ -196,20 +284,31 @@ class SearchPanelController<R extends SearchNumData<T>, T>
 
   @override
   void checkIsEnd(int length) {
-    if (_usesIntlAppSearch && _resolverCursor?.isNotEmpty != true) {
+    if (resolverRegion.value != null &&
+        _regionHasMore[resolverRegion.value] != true) {
+      isEnd = true;
+    } else if (_usesIntlAppSearch && _resolverCursor?.isNotEmpty != true) {
       isEnd = true;
     }
+  }
+
+  void _clearRegionRequests() {
+    _regionRequests.clear();
+    _regionHasMore.clear();
+    _regionCursors.clear();
   }
 
   @override
   Future<void> onRefresh() {
     _resolverCursor = null;
+    _clearRegionRequests();
     return super.onRefresh();
   }
 
   @override
   Future<void> onReload() {
     _resolverCursor = null;
+    _clearRegionRequests();
     scrollController.jumpToTop();
     return super.onReload();
   }

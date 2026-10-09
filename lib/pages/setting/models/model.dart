@@ -21,6 +21,7 @@ sealed class SettingsModel {
   Widget get widget;
   String get effectiveTitle;
   String? get effectiveSubtitle;
+  bool get searchable => true;
 
   const SettingsModel({
     this.subtitle,
@@ -28,6 +29,36 @@ sealed class SettingsModel {
     this.contentPadding,
     this.titleStyle,
   });
+}
+
+class SettingSectionModel extends SettingsModel {
+  const SettingSectionModel(this.title);
+
+  @override
+  final String title;
+
+  @override
+  bool get searchable => false;
+
+  @override
+  String get effectiveTitle => title;
+
+  @override
+  String? get effectiveSubtitle => null;
+
+  @override
+  Widget get widget => Builder(
+    builder: (context) => Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+          color: Theme.of(context).colorScheme.primary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ),
+  );
 }
 
 class SplitModel extends SettingsModel {

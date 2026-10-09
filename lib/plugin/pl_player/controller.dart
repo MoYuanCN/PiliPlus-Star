@@ -42,6 +42,7 @@ import 'package:PiliPlus/utils/extension/size_ext.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
 import 'package:PiliPlus/utils/image_utils.dart';
 import 'package:PiliPlus/utils/ios/pip_helper.dart';
+import 'package:PiliPlus/utils/mpv_config.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/path_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
@@ -757,7 +758,8 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
 
       dataStatus.value = .loaded;
 
-      if (autoFullScreenFlag && autoEnterFullScreen) {
+      if (autoFullScreenFlag &&
+          (autoEnterFullScreen || Pref.mpvStartFullscreen)) {
         triggerFullScreen(status: true);
       }
 
@@ -831,6 +833,13 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     final subtitleFontDirectory = await SubtitleFontUtils.ensureDirectory();
     final opt = {
       'video-sync': Pref.videoSync,
+      'interpolation': Pref.mpvInterpolation ? 'yes' : 'no',
+      'deband': Pref.mpvDeband ? 'yes' : 'no',
+      if (Pref.mpvVideoOutput != 'auto') 'vo': Pref.mpvVideoOutput,
+      'alang': Pref.mpvAudioLanguage,
+      'slang': Pref.mpvSubtitleLanguage,
+      'cache': Pref.mpvCacheEnabled ? 'yes' : 'no',
+      'sub-auto': Pref.mpvSubtitleAutoLoad ? 'fuzzy' : 'no',
       // Keep ASS script styles, positioning, and animations under libass.
       'sub-ass-override': 'no',
       'sub-font': subtitleFontFamily,
@@ -844,10 +853,23 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     if (autosync != '0') {
       opt['autosync'] = autosync;
     }
+    opt.addAll(
+      await MpvConfig.playerOptions(enabled: Pref.developerModeEnabled),
+    );
 
     final player = await Player.create(
       configuration: PlayerConfiguration(
-        logLevel: kDebugMode ? .warn : .error,
+        logLevel: kDebugMode
+            ? .warn
+            : Pref.developerModeEnabled
+            ? switch (Pref.mpvLogLevel) {
+                'error' => .error,
+                'info' => .info,
+                'verbose' => .v,
+                'debug' => .debug,
+                _ => .warn,
+              }
+            : .error,
         options: opt,
       ),
     );
@@ -894,6 +916,29 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     updateSubtitleStyle();
     try {
       await _videoPlayerController?.command(['set', 'sub-font', family]);
+    } catch (_) {}
+  }
+
+  Future<void> applySubtitleFontFamilyForTrack(
+    String family, {
+    required bool forceAssFont,
+  }) async {
+    subtitleFontFamily = family;
+    updateSubtitleStyle();
+    final player = _videoPlayerController;
+    if (player == null) return;
+    try {
+      await player.command(['set', 'sub-font', family]);
+      await player.command([
+        'set',
+        'sub-ass-force-style',
+        forceAssFont ? 'FontName=$family' : '',
+      ]);
+      await player.command([
+        'set',
+        'sub-ass-override',
+        forceAssFont ? 'yes' : 'no',
+      ]);
     } catch (_) {}
   }
 

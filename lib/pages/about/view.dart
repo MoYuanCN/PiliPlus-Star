@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:PiliPlus/build_config.dart';
@@ -146,9 +145,9 @@ class _AboutPageState extends State<AboutPage> {
                 : () => Utils.copyText(currentVersion),
             title: const Text('当前版本'),
             leading: const Icon(Icons.commit_outlined),
-            trailing: Text(
-              currentVersion,
-              style: subTitleStyle,
+            trailing: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Text(currentVersion, style: subTitleStyle),
             ),
           ),
           ListTile(

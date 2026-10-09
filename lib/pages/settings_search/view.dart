@@ -4,6 +4,7 @@ import 'package:PiliPlus/common/widgets/view_insets_safe_area.dart';
 import 'package:PiliPlus/common/widgets/view_sliver_safe_area.dart';
 import 'package:PiliPlus/pages/search/controller.dart' show DebounceStreamState;
 import 'package:PiliPlus/pages/setting/models/extra_settings.dart';
+import 'package:PiliPlus/pages/setting/models/developer_settings.dart';
 import 'package:PiliPlus/pages/setting/models/model.dart';
 import 'package:PiliPlus/pages/setting/models/play_settings.dart';
 import 'package:PiliPlus/pages/setting/models/privacy_settings.dart';
@@ -28,12 +29,20 @@ class _SettingsSearchPageState
   final _textEditingController = TextEditingController();
   final RxList<SettingsModel> _list = <SettingsModel>[].obs;
   late final _settings = [
+    ...developerSettings,
     ...extraSettings,
+    ...danmakuSettings,
+    ...subtitleSettings,
     ...privacySettings,
     ...recommendSettings,
     ...videoSettings,
+    ...qualityEnhancementSettings,
     ...playSettings,
     ...styleSettings,
+    ...contentSettings,
+    ...communitySettings,
+    ...searchSettings,
+    ...networkSettings,
   ];
 
   @override
@@ -45,8 +54,10 @@ class _SettingsSearchPageState
       _list.value = _settings
           .where(
             (item) =>
-                item.effectiveTitle.toLowerCase().contains(value) ||
-                item.effectiveSubtitle?.toLowerCase().contains(value) == true,
+                item.searchable &&
+                (item.effectiveTitle.toLowerCase().contains(value) ||
+                    item.effectiveSubtitle?.toLowerCase().contains(value) ==
+                        true),
           )
           .toList();
     }

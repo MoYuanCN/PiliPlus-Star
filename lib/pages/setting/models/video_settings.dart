@@ -6,6 +6,7 @@ import 'package:PiliPlus/models/common/video/live_quality.dart';
 import 'package:PiliPlus/models/common/video/video_decode_type.dart';
 import 'package:PiliPlus/models/common/video/video_quality.dart';
 import 'package:PiliPlus/pages/setting/models/model.dart';
+import 'package:PiliPlus/pages/setting/pages/external_player_setting.dart';
 import 'package:PiliPlus/pages/setting/widgets/ordered_multi_select_dialog.dart';
 import 'package:PiliPlus/pages/setting/widgets/select_dialog.dart';
 import 'package:PiliPlus/plugin/pl_player/models/audio_output_type.dart';
@@ -67,6 +68,86 @@ String _resolverModeSubtitle(BangumiRegion region) {
 }
 
 List<SettingsModel> get videoSettings => [
+  const SettingSectionModel('MPV 播放器（libmpv）'),
+  const NormalModel(
+    title: '播放器内核',
+    subtitle: 'MPV（libmpv）',
+    leading: Icon(Icons.movie_filter_outlined),
+  ),
+  const SwitchModel(
+    title: '视频插帧',
+    subtitle: '使用 MPV 插帧平滑运动画面；下次播放生效',
+    leading: Icon(Icons.motion_photos_auto_outlined),
+    setKey: SettingBoxKey.mpvInterpolation,
+    defaultVal: false,
+  ),
+  NormalModel(
+    title: 'MPV 视频输出驱动',
+    leading: const Icon(Icons.monitor_outlined),
+    getSubtitle: () => '当前：${Pref.mpvVideoOutput}',
+    onTap: _showMpvVideoOutput,
+  ),
+  NormalModel(
+    title: 'MPV 音轨语言顺序',
+    subtitle: '控制 MPV 内置音轨语言选择顺序',
+    leading: const Icon(Icons.audiotrack_outlined),
+    getSubtitle: () => Pref.mpvAudioLanguage,
+    onTap: (context, setState) => _editMpvLanguage(
+      context,
+      'MPV 音轨语言顺序',
+      SettingBoxKey.mpvAudioLanguage,
+      Pref.mpvAudioLanguage,
+    ).then((_) => setState()),
+  ),
+  NormalModel(
+    title: 'MPV 字幕语言顺序',
+    subtitle: '控制 MPV 内置字幕轨道语言选择顺序',
+    leading: const Icon(Icons.subtitles_outlined),
+    getSubtitle: () => Pref.mpvSubtitleLanguage,
+    onTap: (context, setState) => _editMpvLanguage(
+      context,
+      'MPV 字幕语言顺序',
+      SettingBoxKey.mpvSubtitleLanguage,
+      Pref.mpvSubtitleLanguage,
+    ).then((_) => setState()),
+  ),
+  const SwitchModel(
+    title: '默认全屏播放',
+    subtitle: '自动播放时直接进入全屏',
+    leading: Icon(Icons.fullscreen_outlined),
+    setKey: SettingBoxKey.mpvStartFullscreen,
+    defaultVal: false,
+  ),
+  const SwitchModel(
+    title: 'MPV 缓存',
+    subtitle: '关闭后停用 MPV 网络缓存',
+    leading: Icon(Icons.cached_outlined),
+    setKey: SettingBoxKey.mpvCacheEnabled,
+    defaultVal: true,
+  ),
+  const SwitchModel(
+    title: '自动加载同目录字幕',
+    subtitle: '播放本地视频时查找同名字幕文件',
+    leading: Icon(Icons.subtitles_outlined),
+    setKey: SettingBoxKey.mpvSubtitleAutoLoad,
+    defaultVal: true,
+  ),
+  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS)
+    NormalModel(
+      title: '外部播放器',
+      subtitle: '配置 MPV、PotPlayer 或其他播放器',
+      leading: const Icon(Icons.open_in_new),
+      onTap: (context, setState) =>
+          Get.to(() => const ExternalPlayerSettingsPage()),
+    ),
+  const SwitchModel(
+    title: '去色带',
+    subtitle: '减少渐变画面中的色带；下次播放生效',
+    leading: Icon(Icons.gradient_outlined),
+    setKey: SettingBoxKey.mpvDeband,
+    defaultVal: false,
+  ),
+  const SettingSectionModel('播放能力'),
   const SwitchModel(
     title: '开启硬解',
     subtitle: '以较低功耗播放视频，若异常卡死请关闭',
@@ -99,31 +180,12 @@ List<SettingsModel> get videoSettings => [
       ),
     ),
   ),
-  NormalModel(
-    title: 'CDN 设置',
-    leading: const Icon(MdiIcons.cloudPlusOutline),
-    getSubtitle: () =>
-        '当前使用：${VideoUtils.cdnService.desc}，部分 CDN 可能失效，如无法播放请尝试切换',
-    onTap: _showCDNDialog,
-  ),
-  NormalModel(
-    title: '字幕字体',
-    subtitle: '设置字幕默认字体并管理字体文件；不影响应用界面字体',
-    leading: const Icon(Icons.font_download_outlined),
-    onTap: (context, setState) => Get.toNamed('/subtitleFontSetting'),
-  ),
+  const SettingSectionModel('番剧地区解析'),
   const SwitchModel(
     title: '自定义番剧解析服务器',
     subtitle: '开启后使用自定义解析服务器搜索观看特定区域的番剧',
     leading: Icon(Icons.travel_explore_outlined),
     setKey: SettingBoxKey.enableBangumiResolver,
-  ),
-  NormalModel(
-    title: '默认解析地区',
-    leading: const Icon(Icons.public_outlined),
-    getSubtitle: () => BangumiRegion.defaultRegion?.label ?? '未指定，按列表顺序尝试',
-    onTap: (context, setState) =>
-        _showBangumiDefaultRegion(context).then((_) => setState()),
   ),
   for (final region in BangumiRegion.values) ...[
     NormalModel(
@@ -155,6 +217,14 @@ List<SettingsModel> get videoSettings => [
           _showBangumiCdnDialog(context, region).then((_) => setState()),
     ),
   ],
+  const SettingSectionModel('CDN 与线路'),
+  NormalModel(
+    title: 'CDN 设置',
+    leading: const Icon(MdiIcons.cloudPlusOutline),
+    getSubtitle: () =>
+        '当前使用：${VideoUtils.cdnService.desc}，部分 CDN 可能失效，如无法播放请尝试切换',
+    onTap: _showCDNDialog,
+  ),
   NormalModel(
     title: '直播 CDN 设置',
     leading: const Icon(MdiIcons.cloudPlusOutline),
@@ -176,6 +246,7 @@ List<SettingsModel> get videoSettings => [
     defaultVal: false,
     onChanged: (value) => VideoUtils.disableAudioCDN = value,
   ),
+  const SettingSectionModel('画质与音质'),
   NormalModel(
     title: '默认画质',
     leading: const Icon(Icons.video_settings_outlined),
@@ -231,6 +302,7 @@ List<SettingsModel> get videoSettings => [
         '首选解码格式：${(Pref.preferCodecsCellular.map((i) => i.name).join(","))}，请根据设备支持情况与需求调整',
     onTap: _showCellularCodecsDialog,
   ),
+  const SettingSectionModel('解码与缓冲'),
   if (kDebugMode || Platform.isAndroid)
     NormalModel(
       title: '音频输出设备',
@@ -272,38 +344,79 @@ List<SettingsModel> get videoSettings => [
   ),
 ];
 
-Future<void> _showBangumiDefaultRegion(BuildContext context) async {
-  final selected = await showDialog<String>(
+List<SettingsModel> get bangumiResolverSettings {
+  final settings = videoSettings;
+  final start = settings.indexWhere(
+    (item) => item is SettingSectionModel && item.title == '番剧地区解析',
+  );
+  final end = settings.indexWhere(
+    (item) => item is SettingSectionModel && item.title == 'CDN 与线路',
+  );
+  if (start < 0) return const [];
+  return settings.sublist(start, end < 0 ? settings.length : end);
+}
+
+List<SettingsModel> get qualityAudioSettings {
+  final regionalTitles = bangumiResolverSettings
+      .map((item) => item.effectiveTitle)
+      .toSet();
+  return videoSettings
+      .where((item) => !regionalTitles.contains(item.effectiveTitle))
+      .toList();
+}
+
+Future<void> _showMpvVideoOutput(
+  BuildContext context,
+  VoidCallback setState,
+) async {
+  const options = <(String, String)>[
+    ('auto', 'auto（自动）'),
+    ('gpu', 'gpu（兼容模式）'),
+    ('gpu-next', 'gpu-next（新渲染器）'),
+  ];
+  final result = await showDialog<String>(
     context: context,
-    builder: (context) => SimpleDialog(
-      title: const Text('默认解析地区'),
-      children: [
-        RadioGroup<String>(
-          groupValue: BangumiRegion.defaultRegion?.mode ?? '',
-          onChanged: (value) => Get.back(result: value),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final value in [
-                '',
-                ...BangumiRegion.values.map((region) => region.mode),
-              ])
-                RadioListTile<String>(
-                  value: value,
-                  title: Text(
-                    value.isEmpty
-                        ? '未指定，按列表顺序尝试'
-                        : BangumiRegion.byMode(value)!.label,
-                  ),
-                ),
-            ],
-          ),
+    builder: (context) => SelectDialog<String>(
+      title: 'MPV 视频输出驱动',
+      value: Pref.mpvVideoOutput,
+      values: options,
+    ),
+  );
+  if (result == null) return;
+  await GStorage.setting.put(SettingBoxKey.mpvVideoOutput, result);
+  setState();
+}
+
+Future<void> _editMpvLanguage(
+  BuildContext context,
+  String title,
+  String key,
+  String current,
+) async {
+  var value = current;
+  final result = await showDialog<String>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(title),
+      content: TextFormField(
+        autofocus: true,
+        initialValue: current,
+        onChanged: (text) => value = text.trim(),
+        decoration: const InputDecoration(
+          hintText: '逗号分隔，例如 zh,zh-CN,ja,en',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: Get.back, child: const Text('取消')),
+        TextButton(
+          onPressed: () => Get.back(result: value),
+          child: const Text('保存'),
         ),
       ],
     ),
   );
-  if (selected == null) return;
-  await BangumiRegion.setDefaultRegion(BangumiRegion.byMode(selected));
+  if (result != null) await GStorage.setting.put(key, result);
 }
 
 Future<void> _editResolverValue(
