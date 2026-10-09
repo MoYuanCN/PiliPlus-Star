@@ -32,6 +32,7 @@ class _SubtitleFontSettingPageState extends State<SubtitleFontSettingPage> {
   bool _loading = true;
   String _selectedFont = Pref.subtitleFontFamily;
   final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
   String _searchText = '';
 
   List<SubtitleFontFace> get _visibleFonts {
@@ -54,6 +55,7 @@ class _SubtitleFontSettingPageState extends State<SubtitleFontSettingPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -326,240 +328,254 @@ class _SubtitleFontSettingPageState extends State<SubtitleFontSettingPage> {
         top: false,
         child: _loading
             ? const Center(child: CircularProgressIndicator())
-            : CustomScrollView(
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '字幕自动选择',
-                            style: theme.textTheme.titleSmall,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '选择自动启用的字幕轨道',
-                            style: theme.textTheme.bodySmall,
-                          ),
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: const Icon(Icons.closed_caption_outlined),
-                            title: const Text('自动启用策略'),
-                            subtitle: Text(Pref.subtitlePreferenceV2.desc),
-                            trailing: const Icon(Icons.chevron_right),
-                            onTap: () => _selectSubtitlePreference(),
-                          ),
-                          const Divider(height: 24),
-                          Text(
-                            '字幕语言偏好与字体',
-                            style: theme.textTheme.titleSmall,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '可按语言优先级自动选择字幕，并为每种语言指定字体。自定义语言标签遵循 BCP 47。',
-                            style: theme.textTheme.bodySmall,
-                          ),
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: const Icon(Icons.sort_by_alpha),
-                            title: const Text('首选字幕语言'),
-                            subtitle: Text(
-                              Pref.subtitleLanguagePreferences.isEmpty
-                                  ? '未设置，沿用字幕列表顺序'
-                                  : Pref.subtitleLanguagePreferences
-                                        .map(SubtitleFontUtils.languageLabel)
-                                        .join(' → '),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
+            : Scrollbar(
+                controller: _scrollController,
+                thumbVisibility: true,
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '字幕自动选择',
+                              style: theme.textTheme.titleSmall,
                             ),
-                            trailing: const Icon(Icons.chevron_right),
-                            onTap: _selectPreferredLanguages,
-                          ),
-                          const SizedBox(height: 4),
-                          Text('各语言字体', style: theme.textTheme.titleSmall),
-                          for (final entry in <String, String>{
-                            ...SubtitleFontUtils.commonLanguageOptions,
-                            for (final tag in Pref.subtitleCustomLanguageTags)
-                              if (!SubtitleFontUtils.commonLanguageOptions
-                                  .containsKey(tag))
-                                tag: '$tag（自定义）',
-                          }.entries)
+                            const SizedBox(height: 4),
+                            Text(
+                              '选择自动启用的字幕轨道',
+                              style: theme.textTheme.bodySmall,
+                            ),
                             ListTile(
-                              dense: true,
                               contentPadding: EdgeInsets.zero,
-                              title: Text(entry.value),
+                              leading: const Icon(
+                                Icons.closed_caption_outlined,
+                              ),
+                              title: const Text('自动启用策略'),
+                              subtitle: Text(Pref.subtitlePreferenceV2.desc),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () => _selectSubtitlePreference(),
+                            ),
+                            const Divider(height: 24),
+                            Text(
+                              '字幕语言偏好与字体',
+                              style: theme.textTheme.titleSmall,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '可按语言优先级自动选择字幕，并为每种语言指定字体。自定义语言标签遵循 BCP 47。',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(Icons.sort_by_alpha),
+                              title: const Text('首选字幕语言'),
                               subtitle: Text(
-                                '${entry.key} · ${Pref.subtitleFontLanguageMap[entry.key] ?? '使用默认字体：${Pref.subtitleFontFamily}'}',
-                                maxLines: 1,
+                                Pref.subtitleLanguagePreferences.isEmpty
+                                    ? '未设置，沿用字幕列表顺序'
+                                    : Pref.subtitleLanguagePreferences
+                                          .map(SubtitleFontUtils.languageLabel)
+                                          .join(' → '),
+                                maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              trailing:
-                                  Pref.subtitleCustomLanguageTags.contains(
-                                    entry.key,
-                                  )
-                                  ? Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(Icons.chevron_right),
-                                        IconButton(
-                                          tooltip: '移除自定义语言',
-                                          icon: const Icon(
-                                            Icons.delete_outline,
-                                          ),
-                                          onPressed: () =>
-                                              _removeCustomLanguageTag(
-                                                entry.key,
-                                              ),
-                                        ),
-                                      ],
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: _selectPreferredLanguages,
+                            ),
+                            const SizedBox(height: 4),
+                            Text('各语言字体', style: theme.textTheme.titleSmall),
+                            for (final entry in <String, String>{
+                              ...SubtitleFontUtils.commonLanguageOptions,
+                              for (final tag in Pref.subtitleCustomLanguageTags)
+                                if (!SubtitleFontUtils.commonLanguageOptions
+                                    .containsKey(tag))
+                                  tag: '$tag（自定义）',
+                            }.entries)
+                              ListTile(
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                title: Text(entry.value),
+                                subtitle: Text(
+                                  '${entry.key} · ${Pref.subtitleFontLanguageMap[entry.key] ?? '使用默认字体：${Pref.subtitleFontFamily}'}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                trailing:
+                                    Pref.subtitleCustomLanguageTags.contains(
+                                      entry.key,
                                     )
-                                  : const Icon(Icons.chevron_right),
-                              onTap: () => _selectLanguageFont(entry.key),
+                                    ? Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.chevron_right),
+                                          IconButton(
+                                            tooltip: '移除自定义语言',
+                                            icon: const Icon(
+                                              Icons.delete_outline,
+                                            ),
+                                            onPressed: () =>
+                                                _removeCustomLanguageTag(
+                                                  entry.key,
+                                                ),
+                                          ),
+                                        ],
+                                      )
+                                    : const Icon(Icons.chevron_right),
+                                onTap: () => _selectLanguageFont(entry.key),
+                              ),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton.icon(
+                                onPressed: _addCustomLanguageTag,
+                                icon: const Icon(Icons.add),
+                                label: const Text('添加自定义语言标签'),
+                              ),
                             ),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: TextButton.icon(
-                              onPressed: _addCustomLanguageTag,
-                              icon: const Icon(Icons.add),
-                              label: const Text('添加自定义语言标签'),
+                            const Divider(height: 24),
+                            Text(
+                              '默认字幕字体',
+                              style: theme.textTheme.titleSmall,
                             ),
-                          ),
-                          const Divider(height: 24),
-                          Text(
-                            '默认字幕字体',
-                            style: theme.textTheme.titleSmall,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '仅影响字幕显示，与“样式设置”中的应用字体分开设置。ASS 字幕保留脚本样式，缺失字体时由 libass 使用此字体并搜索系统字体。',
-                            style: theme.textTheme.bodySmall,
-                          ),
-                          const SizedBox(height: 12),
-                          const _FontDirectoryTile(
-                            title: '应用内置字体文件夹',
-                            directory: SubtitleFontUtils.bundledAssetDirectory,
-                          ),
-                          _FontDirectoryTile(
-                            title:
-                                SubtitleFontUtils.sameDirectory(
-                                  _activeFontDirectory,
-                                  SubtitleFontUtils.directoryPath,
-                                )
-                                ? '字幕字体文件夹'
-                                : '字幕字体文件夹（所选位置不可用，当前使用备用位置）',
-                            directory: _activeFontDirectory,
-                            canOpen: true,
-                            onChoose: _chooseFontDirectory,
-                            onReset: _resetFontDirectory,
-                            canReset: !SubtitleFontUtils.sameDirectory(
-                              SubtitleFontUtils.directoryPath,
-                              SubtitleFontUtils.defaultDirectoryPath,
+                            const SizedBox(height: 4),
+                            Text(
+                              '仅影响字幕显示，与“样式设置”中的应用字体分开设置。ASS 字幕保留脚本样式，缺失字体时由 libass 使用此字体并搜索系统字体。',
+                              style: theme.textTheme.bodySmall,
                             ),
-                          ),
-                          for (final directory in _systemDirectories)
+                            const SizedBox(height: 12),
+                            const _FontDirectoryTile(
+                              title: '应用内置字体文件夹',
+                              directory:
+                                  SubtitleFontUtils.bundledAssetDirectory,
+                            ),
                             _FontDirectoryTile(
-                              title: '系统字体文件夹',
-                              directory: directory,
-                              canOpen:
-                                  Platform.isWindows ||
-                                  Platform.isLinux ||
-                                  Platform.isMacOS,
+                              title:
+                                  SubtitleFontUtils.sameDirectory(
+                                    _activeFontDirectory,
+                                    SubtitleFontUtils.directoryPath,
+                                  )
+                                  ? '字幕字体文件夹'
+                                  : '字幕字体文件夹（所选位置不可用，当前使用备用位置）',
+                              directory: _activeFontDirectory,
+                              canOpen: true,
+                              onChoose: _chooseFontDirectory,
+                              onReset: _resetFontDirectory,
+                              canReset: !SubtitleFontUtils.sameDirectory(
+                                SubtitleFontUtils.directoryPath,
+                                SubtitleFontUtils.defaultDirectoryPath,
+                              ),
                             ),
-                          const Divider(height: 20),
-                          TextField(
-                            controller: _searchController,
-                            onChanged: (value) => setState(
-                              () => _searchText = value,
+                            for (final directory in _systemDirectories)
+                              _FontDirectoryTile(
+                                title: '系统字体文件夹',
+                                directory: directory,
+                                canOpen:
+                                    Platform.isWindows ||
+                                    Platform.isLinux ||
+                                    Platform.isMacOS,
+                              ),
+                            const Divider(height: 20),
+                            TextField(
+                              controller: _searchController,
+                              onChanged: (value) => setState(
+                                () => _searchText = value,
+                              ),
+                              decoration: InputDecoration(
+                                prefixIcon: const Icon(Icons.search),
+                                hintText: '搜索文件名、字体名称或家族名',
+                                suffixIcon: _searchText.isEmpty
+                                    ? null
+                                    : IconButton(
+                                        tooltip: '清除搜索',
+                                        onPressed: () {
+                                          _searchController.clear();
+                                          setState(() => _searchText = '');
+                                        },
+                                        icon: const Icon(Icons.clear),
+                                      ),
+                                border: const OutlineInputBorder(),
+                                isDense: true,
+                              ),
                             ),
-                            decoration: InputDecoration(
-                              prefixIcon: const Icon(Icons.search),
-                              hintText: '搜索文件名、字体名称或家族名',
-                              suffixIcon: _searchText.isEmpty
-                                  ? null
-                                  : IconButton(
-                                      tooltip: '清除搜索',
-                                      onPressed: () {
-                                        _searchController.clear();
-                                        setState(() => _searchText = '');
-                                      },
-                                      icon: const Icon(Icons.clear),
-                                    ),
-                              border: const OutlineInputBorder(),
-                              isDense: true,
+                            const SizedBox(height: 12),
+                            Text(
+                              '字体（${_visibleFonts.length}/${_fonts.length}）',
+                              style: theme.textTheme.titleSmall,
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            '字体（${_visibleFonts.length}/${_fonts.length}）',
-                            style: theme.textTheme.titleSmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (_visibleFonts.isEmpty)
-                    SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: Center(
-                        child: Text(
-                          _fonts.isEmpty ? '未识别到字体' : '没有匹配的字体',
+                          ],
                         ),
                       ),
-                    )
-                  else
-                    SliverList.builder(
-                      itemCount: _visibleFonts.length,
-                      itemBuilder: (context, index) {
-                        final font = _visibleFonts[index];
-                        final isBundled =
-                            font.source == SubtitleFontSource.bundled;
-                        final isSelected = _selectedFont == font.family;
-                        return Column(
-                          children: [
-                            ListTile(
-                              dense: true,
-                              leading: Icon(
-                                isSelected
-                                    ? Icons.radio_button_checked
-                                    : Icons.radio_button_off,
-                                color: isSelected
-                                    ? theme.colorScheme.primary
-                                    : null,
-                              ),
-                              title: Text(
-                                font.family ==
-                                        SubtitleFontUtils.defaultFontFamily
-                                    ? '${font.family}（梦源黑体）'
-                                    : font.family,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              subtitle: Text(
-                                '${font.sourceLabel}${font.file == null ? '' : ' · ${path.basename(font.file!.path)}'}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              trailing: isBundled || font.file == null
-                                  ? null
-                                  : iconButton(
-                                      tooltip: '删除字体文件',
-                                      icon: const Icon(Icons.delete_outline),
-                                      onPressed: () => _deleteFont(font.file!),
-                                    ),
-                              onTap: () => _selectFont(font),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(72, 0, 16, 10),
-                              child: _FontPreview(font: font),
-                            ),
-                            const Divider(height: 1),
-                          ],
-                        );
-                      },
                     ),
-                ],
+                    if (_visibleFonts.isEmpty)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(
+                          child: Text(
+                            _fonts.isEmpty ? '未识别到字体' : '没有匹配的字体',
+                          ),
+                        ),
+                      )
+                    else
+                      SliverList.builder(
+                        itemCount: _visibleFonts.length,
+                        itemBuilder: (context, index) {
+                          final font = _visibleFonts[index];
+                          final isBundled =
+                              font.source == SubtitleFontSource.bundled;
+                          final isSelected = _selectedFont == font.family;
+                          return Column(
+                            children: [
+                              ListTile(
+                                dense: true,
+                                leading: Icon(
+                                  isSelected
+                                      ? Icons.radio_button_checked
+                                      : Icons.radio_button_off,
+                                  color: isSelected
+                                      ? theme.colorScheme.primary
+                                      : null,
+                                ),
+                                title: Text(
+                                  font.family ==
+                                          SubtitleFontUtils.defaultFontFamily
+                                      ? '${font.family}（梦源黑体）'
+                                      : font.family,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                subtitle: Text(
+                                  '${font.sourceLabel}${font.file == null ? '' : ' · ${path.basename(font.file!.path)}'}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                trailing: isBundled || font.file == null
+                                    ? null
+                                    : iconButton(
+                                        tooltip: '删除字体文件',
+                                        icon: const Icon(Icons.delete_outline),
+                                        onPressed: () =>
+                                            _deleteFont(font.file!),
+                                      ),
+                                onTap: () => _selectFont(font),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  72,
+                                  0,
+                                  16,
+                                  10,
+                                ),
+                                child: _FontPreview(font: font),
+                              ),
+                              const Divider(height: 1),
+                            ],
+                          );
+                        },
+                      ),
+                  ],
+                ),
               ),
       ),
     );

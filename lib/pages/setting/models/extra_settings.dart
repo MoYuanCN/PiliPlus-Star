@@ -26,6 +26,7 @@ import 'package:PiliPlus/pages/common/slide/common_slide_page.dart';
 import 'package:PiliPlus/pages/home/controller.dart';
 import 'package:PiliPlus/pages/main/controller.dart';
 import 'package:PiliPlus/pages/setting/models/model.dart';
+import 'package:PiliPlus/pages/setting/pages/danmaku_font_setting.dart';
 import 'package:PiliPlus/pages/setting/widgets/select_dialog.dart';
 import 'package:PiliPlus/pages/setting/widgets/slider_dialog.dart';
 import 'package:PiliPlus/pages/video/reply/widgets/reply_item_grpc.dart';
@@ -192,11 +193,14 @@ List<SettingsModel> get allExtraSettings => [
   ),
   NormalModel(
     title: '弹幕字体',
-    subtitle: '单独设置弹幕字体；填写系统或已安装字体的家族名',
+    subtitle: '浏览并选择弹幕显示字体',
     leading: const Icon(Icons.font_download_outlined),
     getSubtitle: () =>
         Pref.danmakuFontFamily.isEmpty ? '默认字体' : Pref.danmakuFontFamily,
-    onTap: _showDanmakuFontDialog,
+    onTap: (context, setState) async {
+      await Get.to(() => const DanmakuFontSettingPage());
+      setState();
+    },
   ),
   const SwitchModel(
     title: '显示视频警告/争议信息',
@@ -1162,42 +1166,6 @@ void _showDmHeightDialog(BuildContext context, VoidCallback setState) {
       ],
     ),
   );
-}
-
-void _showDanmakuFontDialog(BuildContext context, VoidCallback setState) {
-  final controller = TextEditingController(text: Pref.danmakuFontFamily);
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('弹幕字体'),
-      content: TextField(
-        controller: controller,
-        autofocus: true,
-        decoration: const InputDecoration(
-          labelText: '字体家族名',
-          hintText: '留空使用默认字体',
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: Get.back,
-          child: Text(
-            '取消',
-            style: TextStyle(color: ColorScheme.of(context).outline),
-          ),
-        ),
-        TextButton(
-          onPressed: () async {
-            final value = controller.text.trim();
-            await GStorage.setting.put(SettingBoxKey.danmakuFontFamily, value);
-            if (context.mounted) Get.back();
-            setState();
-          },
-          child: const Text('保存'),
-        ),
-      ],
-    ),
-  ).whenComplete(controller.dispose);
 }
 
 void _showTouchSlopDialog(BuildContext context, VoidCallback setState) {
