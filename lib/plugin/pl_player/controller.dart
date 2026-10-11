@@ -891,6 +891,8 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
       try {
         await player.command(['set', 'sub-font-provider', 'fontconfig']);
       } catch (_) {}
+      // Avoid sizing the surface using mpv's idle window between media loads.
+      player.setProperty('force-window', 'no');
     }
 
     player.setMediaHeader(userAgent: BrowserUa.pc, referer: HttpString.baseUrl);

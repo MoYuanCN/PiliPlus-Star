@@ -171,7 +171,8 @@ abstract final class SettingBoxKey {
       angleDegrees = 'angleDegrees',
       liveStream = 'liveStream',
       enableDocProvider = 'enableDocProvider',
-      enableEmoteTooltip = 'enableEmoteTooltip';
+      enableEmoteTooltip = 'enableEmoteTooltip',
+      mineTabs = 'mineTabs';
 
   static const String minimizeOnExit = 'minimizeOnExit',
       windowSize = 'windowSize',
