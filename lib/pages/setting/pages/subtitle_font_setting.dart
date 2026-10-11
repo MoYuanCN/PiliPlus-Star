@@ -295,7 +295,7 @@ class _SubtitleFontSettingPageState extends State<SubtitleFontSettingPage> {
     final selected = await showDialog<List<String>>(
       context: context,
       builder: (context) => OrderedMultiSelectDialog<String>(
-        title: '首选字幕语言（按顺序）',
+        title: const Text('首选字幕语言（按顺序）'),
         initValues: Pref.subtitleLanguagePreferences.where(options.containsKey),
         values: options,
       ),
