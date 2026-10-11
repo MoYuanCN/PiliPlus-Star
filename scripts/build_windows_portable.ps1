@@ -11,7 +11,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $workspaceRoot = Split-Path $repoRoot -Parent
-$flutterRoot = Join-Path $workspaceRoot 'tools\flutter\sdk\flutter-3.47.6-build\flutter'
+$flutterVersion = (Get-Content (Join-Path $repoRoot '.fvmrc') -Raw | ConvertFrom-Json).flutter
+$flutterRoot = Join-Path $workspaceRoot "tools\flutter\sdk\flutter-$flutterVersion-build\flutter"
 $flutterBat = Join-Path $flutterRoot 'bin\flutter.bat'
 $pubCache = Join-Path $workspaceRoot 'tools\flutter\pub-cache'
 $isolatedAppData = Join-Path $workspaceRoot 'tools\flutter\isolated-appdata'
@@ -152,7 +153,7 @@ try {
     }
     [IO.File]::WriteAllText($flutterBat, $batText, [Text.UTF8Encoding]::new($false))
 
-    $flutterRootForBuild = Join-Path $mappedWorkspaceRoot 'tools\flutter\sdk\flutter-3.47.6-build\flutter'
+    $flutterRootForBuild = Join-Path $mappedWorkspaceRoot "tools\flutter\sdk\flutter-$flutterVersion-build\flutter"
     $flutterBatForBuild = Join-Path $flutterRootForBuild 'bin\flutter.bat'
     $pubCacheForBuild = Join-Path $mappedWorkspaceRoot 'tools\flutter\pub-cache'
     $appDataForBuild = Join-Path $mappedWorkspaceRoot 'tools\flutter\isolated-appdata'
@@ -226,6 +227,12 @@ $gitCommit = (git -C $repoRoot rev-parse HEAD).Trim()
 git -C $repoRoot diff HEAD --binary "--output=$snapshot"
 if ($LASTEXITCODE -ne 0) { throw 'Could not save the tracked source snapshot.' }
 $sourceHash = (Get-FileHash -Algorithm SHA256 $snapshot).Hash
+$workingTreeStatus = @(git -C $repoRoot status --porcelain)
+$workingTreeState = if ($workingTreeStatus.Count -gt 0) {
+    "Modified; source snapshot: $snapshot"
+} else {
+    'Clean'
+}
 $pubspecVersion = (Select-String -Path (Join-Path $repoRoot 'pubspec.yaml') -Pattern '^version:\s*([^+\s]+)' |
     Select-Object -First 1).Matches[0].Groups[1].Value
 $version = "$pubspecVersion+$BuildNumber"
@@ -238,11 +245,11 @@ Project: PiliPlus-Star
 Repository: $repoRoot
 Branch: $gitBranch
 Git Commit: $gitCommit
-Working Tree: Modified; source snapshot: $snapshot
+Working Tree: $workingTreeState
 Source Diff SHA-256: $sourceHash
 Build Time: $buildTime
 Version: $version
-Flutter: 3.47.6
+Flutter: $flutterVersion
 Target: Windows x64 Portable
 Build Mode: Incremental, --no-pub, $Jobs parallel CMake jobs
 Flutter Build Seconds: $buildSeconds
